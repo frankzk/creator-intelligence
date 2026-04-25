@@ -3,7 +3,7 @@ uvicorn[standard]==0.32.1
 python-dotenv==1.0.1
 yt-dlp==2024.12.6
 faster-whisper==1.1.0
-anthropic==0.40.0
+anthropic==0.34.2
 playwright==1.49.0
 python-multipart==0.0.17
 httpx==0.27.2
