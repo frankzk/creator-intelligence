@@ -15,7 +15,7 @@ client = anthropic.Anthropic(
     max_retries=2,
 )
 
-_SONNET = "claude-sonnet-4-20250514"
+_SONNET = "claude-sonnet-4-6"
 
 
 def _safe(text, max_len: int = 0) -> str:
@@ -43,7 +43,7 @@ def _call(messages: list, system: str = "", max_tokens: int = 1000) -> str:
     return resp.content[0].text
 
 
-# ─── FLOW A: CREATOR DNA ──────────────────────────────────────────────────────
+# ─── FLOW A: CREATOR DNA ──────────────────────────────────────────────────────────────────────────────
 
 def classify_hook_type(transcript: str, title: str) -> str:
     text = (_safe(title) + " " + _safe(transcript, 300)).lower()
@@ -86,11 +86,11 @@ Devuelve SOLO un JSON con esta estructura (sin texto extra):
   "angles": ["Resultado visible", "Testimonio propio", "Comparación rival", "Urgencia stock", "Precio accesible"],
   "formula": "Dato shock (5s) → Dolor (8s) → Descubrimiento (10s) → Prueba (12s) → CTA",
   "formula_steps": [
-    {"label": "Dato shock", "color": "#7C3AED"},
-    {"label": "Dolor", "color": "#EF4444"},
-    {"label": "Descubrimiento", "color": "#3B82F6"},
-    {"label": "Prueba", "color": "#10B981"},
-    {"label": "CTA", "color": "#F59E0B"}
+    {"label":"Dato shock", "color":"#7C3AED"},
+    {"label":"Dolor", "color":"#EF4444"},
+    {"label":"Descubrimiento", "color":"#3B82F6"},
+    {"label":"Prueba", "color":"#10B981"},
+    {"label":"CTA", "color":"#F59E0B"}
   ],
   "avg_views": 847000,
   "top_video_count": 11,
@@ -107,7 +107,7 @@ Devuelve SOLO un JSON con esta estructura (sin texto extra):
     ))
 
 
-# ─── FLOW B: PRODUCT ANALYSIS ────────────────────────────────────────────────
+# ─── FLOW B: PRODUCT ANALYSIS ────────────────────────────────────────────────────────────────────────────
 
 def analyze_product_video(transcript: str, views: int, gmv: float) -> str:
     prompt = (
@@ -132,7 +132,7 @@ def analyze_product_patterns(product_videos: list[dict]) -> dict:
     return _parse_json(_call(messages=[{"role": "user", "content": prompt}], max_tokens=600))
 
 
-# ─── SCRIPT GENERATOR ────────────────────────────────────────────────────────
+# ─── SCRIPT GENERATOR ───────────────────────────────────────────────────────────────────────────────────
 
 def generate_scripts(
     product_name: str,
@@ -186,6 +186,7 @@ def generate_scripts(
         '      {"label":"Dolor","timing":"5-13s","script":"...","direction":["..."]},\n'
         '      {"label":"Descubrimiento","timing":"13-23s","script":"...","direction":["..."]},\n'
         '      {"label":"Prueba","timing":"23-38s","script":"...","direction":["..."]},\n'
+        '      {"label":"CTA","timing":"38-44s","script":"...","direction":["..."]},\n'
         '      {"label":"CTA","timing":"38-44s","script":"...","direction":["..."]}\n'
         '    ],\n'
         '    "description": "texto 150-200 chars emoji+gancho+CTA",\n'
@@ -197,7 +198,6 @@ def generate_scripts(
         'Cada script con ángulo diferente. Solo el array JSON.'
     )
 
-    # Build message content — never pass empty text blocks
     if image_path and os.path.exists(image_path):
         ext = Path(image_path).suffix.lower()
         media_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
@@ -205,13 +205,13 @@ def generate_scripts(
         with open(image_path, "rb") as f:
             img_b64 = base64.standard_b64encode(f.read()).decode()
 
-        intro = f"Imagen del producto: {_safe(product_name)}."  # never empty
+        intro = f"Imagen del producto: {_safe(product_name)}."
         user_content = [
             {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_b64}},
             {"type": "text", "text": intro + "\n\n" + prompt},
         ]
     else:
-        user_content = prompt  # plain string — SDK wraps as single text block
+        user_content = prompt
 
     return _parse_json(_call(
         messages=[{"role": "user", "content": user_content}],
@@ -220,7 +220,7 @@ def generate_scripts(
     ))
 
 
-# ─── GLOBAL INSIGHTS ─────────────────────────────────────────────────────────
+# ─── GLOBAL INSIGHTS ──────────────────────────────────────────────────────────────────────────────────
 
 def get_global_insights(all_creators: list[dict]) -> dict:
     blocks = []
