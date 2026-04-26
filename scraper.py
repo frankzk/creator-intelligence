@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 
 import yt_dlp
 from playwright.async_api import async_playwright
@@ -124,12 +125,24 @@ async def _dom_fallback(page, url: str, max_videos: int) -> list[dict]:
     return results
 
 
+def _run_async(coro):
+    """Run an async coroutine safely on Windows using ProactorEventLoop."""
+    if sys.platform == "win32":
+        loop = asyncio.ProactorEventLoop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+    return asyncio.run(coro)
+
+
 def scrape_profile_metadata(url: str, max_videos: int = 25) -> list[dict]:
-    return asyncio.run(_scrape_profile(url, max_videos))
+    return _run_async(_scrape_profile(url, max_videos))
 
 
 def scrape_profile_full(url: str, max_videos: int = 25) -> list[dict]:
-    return asyncio.run(_scrape_profile(url, max_videos))
+    return _run_async(_scrape_profile(url, max_videos))
 
 
 def download_video_audio(video_url: str, output_dir: str) -> str:
