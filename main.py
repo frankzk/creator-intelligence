@@ -26,7 +26,7 @@ from analyzer import (
 )
 from kalodata import scrape_kalodata_sync
 
-# ─── Init ─────────────────────────────────────────────────────────────────────
+# --- Init ---
 
 Path("uploads").mkdir(exist_ok=True)
 Path("temp_audio").mkdir(exist_ok=True)
@@ -43,7 +43,7 @@ async def root():
     return FileResponse("static/index.html")
 
 
-# ─── Creators ─────────────────────────────────────────────────────────────────
+# --- Creators ---
 
 class AddCreatorRequest(BaseModel):
     url: str
@@ -157,7 +157,12 @@ async def get_creator(creator_id: int):
 async def get_creator_videos(
     creator_id: int, sort: str = "views", page: int = 1, per_page: int = 10
 ):
-    allowed = {"views": "views DESC", "duration": "duration DESC", "hook_type": "hook_type ASC"}
+    allowed = {
+        "views": "views DESC",
+        "duration": "duration DESC",
+        "hook_type": "hook_type ASC",
+        "published_at": "published_at DESC",
+    }
     order = allowed.get(sort, "views DESC")
 
     conn = get_conn()
@@ -185,7 +190,7 @@ async def delete_creator(creator_id: int):
     return {"status": "deleted"}
 
 
-# ─── Products ─────────────────────────────────────────────────────────────────
+# --- Products ---
 
 class SearchProductRequest(BaseModel):
     keyword: str
@@ -241,7 +246,7 @@ async def delete_product(product_id: int):
     return {"status": "deleted"}
 
 
-# ─── Scripts ──────────────────────────────────────────────────────────────────
+# --- Scripts ---
 
 class GenerateScriptsRequest(BaseModel):
     product_name: str
@@ -290,7 +295,6 @@ async def generate_scripts_endpoint(req: GenerateScriptsRequest):
         if os.path.exists(candidate):
             image_path = candidate
 
-    # Run blocking Anthropic call in a thread so the event loop stays free.
     scripts = await asyncio.to_thread(
         generate_scripts,
         req.product_name,
@@ -304,13 +308,13 @@ async def generate_scripts_endpoint(req: GenerateScriptsRequest):
     return {"scripts": scripts}
 
 
-# ─── Upload ───────────────────────────────────────────────────────────────────
+# --- Upload ---
 
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...)):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(400, "Solo se aceptan imágenes JPG, PNG o WebP.")
+        raise HTTPException(400, "Solo se aceptan imagenes JPG, PNG o WebP.")
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join("uploads", filename)
     with open(filepath, "wb") as f:
@@ -318,7 +322,7 @@ async def upload_image(file: UploadFile = File(...)):
     return {"filename": filename, "url": f"/uploads/{filename}"}
 
 
-# ─── Insights ─────────────────────────────────────────────────────────────────
+# --- Insights ---
 
 @app.get("/api/insights")
 async def global_insights():
@@ -342,12 +346,10 @@ async def global_insights():
         all_data.append(cd)
 
     conn.close()
-
-    # Blocking Anthropic call → thread pool
     return await asyncio.to_thread(get_global_insights, all_data)
 
 
-# ─── Background task implementations (sync, run in thread pool) ───────────────
+# --- Background task implementations ---
 
 def _set_creator_status(creator_id: int, status: str, niche: str | None = None):
     conn = get_conn()
@@ -383,13 +385,14 @@ def _sync_analyze_creator(creator_id: int, url: str, username: str, incremental:
                 hook_type = classify_hook_type(transcript, v.get("title", ""))
                 conn.execute("""
                     INSERT OR IGNORE INTO videos
-                        (creator_id, tiktok_id, title, views, likes, comments,
-                         shares, duration, transcript, hook_type)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                        (creator_id, tiktok_id, title, url, views, likes, comments,
+                         shares, duration, transcript, hook_type, published_at, thumbnail, hashtags)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
-                    creator_id, v["tiktok_id"], v.get("title", ""),
+                    creator_id, v["tiktok_id"], v.get("title", ""), v.get("url", ""),
                     v.get("views", 0), v.get("likes", 0), v.get("comments", 0),
                     v.get("shares", 0), v.get("duration", 0), transcript, hook_type,
+                    v.get("published_at", ""), v.get("thumbnail", ""), v.get("hashtags", ""),
                 ))
                 conn.commit()
                 v["transcript"] = transcript
@@ -482,9 +485,6 @@ def _sync_analyze_product(product_id: int, keyword: str):
         conn.close()
 
 
-# Async wrappers so FastAPI's BackgroundTasks awaits them properly
-# (sync functions called directly in BackgroundTasks run on the event loop thread)
-
 async def _task_analyze_creator(creator_id: int, url: str, username: str, incremental: bool):
     await asyncio.to_thread(_sync_analyze_creator, creator_id, url, username, incremental)
 
@@ -493,7 +493,7 @@ async def _task_analyze_product(product_id: int, keyword: str):
     await asyncio.to_thread(_sync_analyze_product, product_id, keyword)
 
 
-# ─── Entry point ──────────────────────────────────────────────────────────────
+# --- Entry point ---
 
 if __name__ == "__main__":
     import uvicorn
