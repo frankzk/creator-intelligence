@@ -22,10 +22,9 @@ def extract_username_from_url(url: str) -> str:
 
 
 def _find_ffmpeg() -> str | None:
-    """Return ffmpeg bin directory if found outside PATH."""
     import shutil
     if shutil.which("ffmpeg"):
-        return None  # Already in PATH
+        return None
     for hint in _FFMPEG_HINTS:
         exe = os.path.join(hint, "ffmpeg.exe")
         if os.path.exists(exe):
@@ -64,12 +63,10 @@ def _parse_item(item: dict, fallback_handle: str = "") -> dict | None:
 
 
 async def _extract_sigi_state(page, username: str) -> list[dict]:
-    """Extract video data from TikTok's SIGI_STATE or __NEXT_DATA__ embedded JSON."""
     results = []
     try:
         data = await page.evaluate("""
             () => {
-                // Try SIGI_STATE script tag (current TikTok format)
                 const scripts = Array.from(document.querySelectorAll('script'));
                 for (const s of scripts) {
                     const t = s.textContent || '';
@@ -85,12 +82,10 @@ async def _extract_sigi_state(page, username: str) -> list[dict]:
                         } catch(e) {}
                     }
                 }
-                // Try __NEXT_DATA__ tag
                 const nd = document.querySelector('#__NEXT_DATA__');
                 if (nd) {
                     try { return {source: 'next', data: JSON.parse(nd.textContent)}; } catch(e) {}
                 }
-                // Try SIGI_STATE script id
                 const sg = document.querySelector('#SIGI_STATE');
                 if (sg) {
                     try { return {source: 'sigi', data: JSON.parse(sg.textContent)}; } catch(e) {}
@@ -106,13 +101,11 @@ async def _extract_sigi_state(page, username: str) -> list[dict]:
         d = data.get("data", {})
 
         if source == "sigi":
-            # ItemModule is a dict of {video_id: video_data}
             item_module = d.get("ItemModule", {})
             for _vid_id, item in item_module.items():
                 parsed = _parse_item(item, username)
                 if parsed:
                     results.append(parsed)
-
         elif source == "next":
             page_props = (d.get("props") or {}).get("pageProps") or {}
             items = page_props.get("items") or page_props.get("videoList") or []
@@ -133,12 +126,15 @@ async def _scrape_profile(url: str, max_videos: int = 25) -> list[dict]:
     username = extract_username_from_url(url)
 
     async with async_playwright() as pw:
+        # Use headed mode on Windows to avoid bot detection
+        headless = sys.platform != "win32"
         browser = await pw.chromium.launch(
-            headless=True,
+            headless=headless,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
+                "--window-size=1280,900",
             ],
         )
         ctx = await browser.new_context(
@@ -205,17 +201,17 @@ async def _scrape_profile(url: str, max_videos: int = 25) -> list[dict]:
             await page.wait_for_timeout(2_500)
 
         if not captured:
-            print(f"[scraper] API interception: 0 results — trying SIGI_STATE...")
+            print(f"[scraper] API interception: 0 — trying SIGI_STATE...")
             captured = await _extract_sigi_state(page, username)
             for v in captured:
                 seen.add(v["tiktok_id"])
 
         if not captured:
-            print(f"[scraper] SIGI_STATE: 0 results — trying DOM fallback...")
+            print(f"[scraper] SIGI_STATE: 0 — trying DOM fallback...")
             captured = await _dom_fallback(page, url, max_videos)
 
         await browser.close()
-        print(f"[scraper] total captured: {len(captured)} videos for @{username}")
+        print(f"[scraper] total: {len(captured)} videos for @{username}")
 
     return captured[:max_videos]
 
