@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import os
 import re
@@ -50,6 +51,17 @@ def _parse_item(item: dict, fallback_handle: str = "") -> dict | None:
         except Exception:
             return 0
 
+    create_ts = item.get("createTime") or item.get("create_time") or 0
+    try:
+        published_at = datetime.datetime.fromtimestamp(int(create_ts)).strftime("%Y-%m-%d") if create_ts else ""
+    except Exception:
+        published_at = ""
+
+    video_info = item.get("video") or {}
+    thumbnail = video_info.get("cover") or video_info.get("originCover") or ""
+    desc = item.get("desc") or ""
+    hashtags = " ".join(w for w in desc.split() if w.startswith("#"))
+
     return {
         "tiktok_id": vid_id,
         "title": item.get("desc") or item.get("description") or "",
@@ -59,6 +71,9 @@ def _parse_item(item: dict, fallback_handle: str = "") -> dict | None:
         "shares": _int(stats.get("shareCount") or stats.get("share_count") or 0),
         "duration": int(duration),
         "url": f"https://www.tiktok.com/@{handle}/video/{vid_id}",
+        "published_at": published_at,
+        "thumbnail": thumbnail,
+        "hashtags": hashtags,
     }
 
 
@@ -72,7 +87,7 @@ async def _extract_sigi_state(page, username: str) -> list[dict]:
                     const t = s.textContent || '';
                     if (t.includes('ItemModule') || t.includes('SIGI_STATE')) {
                         try {
-                            const m = t.match(/window\\[['\"](SIGI_STATE|__NEXT_DATA__)['\"]]\\s*=\\s*(\\{.+\\})/s);
+                            const m = t.match(/window\\[['"](SIGI_STATE|__NEXT_DATA__)['"]]\\s*=\\s*(\\{.+\\})/s);
                             if (m) return {source: 'sigi', data: JSON.parse(m[2])};
                             const start = t.indexOf('{');
                             if (start >= 0) {
@@ -126,7 +141,6 @@ async def _scrape_profile(url: str, max_videos: int = 25) -> list[dict]:
     username = extract_username_from_url(url)
 
     async with async_playwright() as pw:
-        # Use headed mode on Windows to avoid bot detection
         headless = sys.platform != "win32"
         browser = await pw.chromium.launch(
             headless=headless,
@@ -241,6 +255,9 @@ async def _dom_fallback(page, url: str, max_videos: int) -> list[dict]:
             "shares": 0,
             "duration": 0,
             "url": f"https://www.tiktok.com/@{username}/video/{vid_id}",
+            "published_at": "",
+            "thumbnail": "",
+            "hashtags": "",
         })
         if len(results) >= max_videos:
             break

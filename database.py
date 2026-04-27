@@ -86,12 +86,17 @@ def init_db():
         );
     """)
 
-    # Migration: add url column to videos if it doesn't exist yet
-    try:
-        conn.execute("ALTER TABLE videos ADD COLUMN url TEXT")
-        conn.commit()
-    except Exception:
-        pass  # Column already exists
+    for col, typedef in [
+        ("url", "TEXT"),
+        ("published_at", "TEXT"),
+        ("thumbnail", "TEXT"),
+        ("hashtags", "TEXT"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {typedef}")
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
 
     conn.commit()
     conn.close()
