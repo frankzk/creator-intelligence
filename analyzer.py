@@ -26,12 +26,10 @@ def _safe(text, max_len: int = 0) -> str:
 
 def _parse_json(text: str) -> dict | list:
     text = text.strip()
-    # Strip markdown code fences
     if text.startswith("```"):
         lines = text.split("\n")
         text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
     text = text.strip()
-    # Find first [ or { to skip any preamble
     for start_char in ("[", "{"):
         idx = text.find(start_char)
         if idx >= 0:
@@ -50,18 +48,16 @@ def _call(messages: list, system: str = "", max_tokens: int = 1000) -> str:
     return resp.content[0].text
 
 
-# ─── FLOW A: CREATOR DNA ───────────────────────────────────────────────────────
-
 def classify_hook_type(transcript: str, title: str) -> str:
     text = (_safe(title) + " " + _safe(transcript, 300)).lower()
-    if any(w in text for w in ["nadie te dice", "secreto", "no sabías", "dato", "sin que"]):
+    if any(w in text for w in ["nadie te dice", "secreto", "no sabias", "dato", "sin que"]):
         return "Dato shock"
-    if any(w in text for w in ["dejé", "gasté", "probé", "cambié", "cambio"]):
+    if any(w in text for w in ["deje", "gaste", "probe", "cambie", "cambio"]):
         return "Contraste"
-    if any(w in text for w in ["mi historia", "pasé por", "yo también", "me pasó"]):
+    if any(w in text for w in ["mi historia", "pase por", "yo tambien", "me paso"]):
         return "Testimonio"
     if any(w in text for w in [" vs ", "mejor que", "en lugar de", "alternativa"]):
-        return "Comparación"
+        return "Comparacion"
     return "Directo"
 
 
@@ -71,8 +67,8 @@ def analyze_creator_dna(creator_username: str, videos: list[dict]) -> dict:
     blocks = []
     for i, v in enumerate(top[:25], 1):
         blocks.append(
-            f"Video {i} | {v.get('views', 0):,} views | {v.get('duration', 0)}s\n"
-            f"Título: {_safe(v.get('title'), 120)}\n"
+            f"Video {i} | URL: {_safe(v.get('url'))} | {v.get('views', 0):,} views | {v.get('duration', 0)}s\n"
+            f"Titulo: {_safe(v.get('title'), 120)}\n"
             f"Transcript: {_safe(v.get('transcript'), 500)}"
         )
 
@@ -84,14 +80,14 @@ def analyze_creator_dna(creator_username: str, videos: list[dict]) -> dict:
 Devuelve SOLO un JSON con esta estructura (sin texto extra):
 {
   "top_hooks": [
-    {"text": "plantilla con [X]", "performance_pct": 85, "count": 5},
-    {"text": "...", "performance_pct": 70, "count": 4},
-    {"text": "...", "performance_pct": 55, "count": 3},
-    {"text": "...", "performance_pct": 40, "count": 2},
-    {"text": "...", "performance_pct": 25, "count": 1}
+    {"text": "plantilla con [X]", "performance_pct": 85, "count": 5, "example_url": "https://www.tiktok.com/@user/video/123"},
+    {"text": "...", "performance_pct": 70, "count": 4, "example_url": "https://www.tiktok.com/@user/video/456"},
+    {"text": "...", "performance_pct": 55, "count": 3, "example_url": ""},
+    {"text": "...", "performance_pct": 40, "count": 2, "example_url": ""},
+    {"text": "...", "performance_pct": 25, "count": 1, "example_url": ""}
   ],
-  "angles": ["Resultado visible", "Testimonio propio", "Comparación rival", "Urgencia stock", "Precio accesible"],
-  "formula": "Dato shock (5s) → Dolor (8s) → Descubrimiento (10s) → Prueba (12s) → CTA",
+  "angles": ["Resultado visible", "Testimonio propio", "Comparacion rival", "Urgencia stock", "Precio accesible"],
+  "formula": "Dato shock (5s) -> Dolor (8s) -> Descubrimiento (10s) -> Prueba (12s) -> CTA",
   "formula_steps": [
     {"label":"Dato shock", "color":"#7C3AED"},
     {"label":"Dolor", "color":"#EF4444"},
@@ -109,18 +105,16 @@ Devuelve SOLO un JSON con esta estructura (sin texto extra):
 
     return _parse_json(_call(
         messages=[{"role": "user", "content": prompt}],
-        system="Eres experto en análisis de contenido TikTok Shop. Responde SOLO con JSON válido.",
+        system="Eres experto en analisis de contenido TikTok Shop. Responde SOLO con JSON valido.",
         max_tokens=2000,
     ))
 
-
-# ─── FLOW B: PRODUCT ANALYSIS ───────────────────────────────────────────────────────
 
 def analyze_product_video(transcript: str, views: int, gmv: float) -> str:
     prompt = (
         f"Views: {views:,} | GMV: ${gmv:,.0f}\n"
         f"Transcript: {_safe(transcript, 700)}\n\n"
-        "En 2-3 oraciones: qué hook usa, qué ángulo, estructura y CTA. Solo el análisis."
+        "En 2-3 oraciones: que hook usa, que angulo, estructura y CTA. Solo el analisis."
     )
     return _call(messages=[{"role": "user", "content": prompt}], max_tokens=300)
 
@@ -139,8 +133,6 @@ def analyze_product_patterns(product_videos: list[dict]) -> dict:
     return _parse_json(_call(messages=[{"role": "user", "content": prompt}], max_tokens=600))
 
 
-# ─── SCRIPT GENERATOR ───────────────────────────────────────────────────────────────────────────────
-
 def generate_scripts(
     product_name: str,
     benefit: str,
@@ -156,22 +148,22 @@ def generate_scripts(
         a = c.get("analysis") or {}
         creators_ctx += (
             f"\n@{c['username']} (avg {a.get('avg_views', 0):,} views, {a.get('avg_duration', 45)}s):\n"
-            f"  Fórmula: {_safe(a.get('formula'))}\n"
+            f"  Formula: {_safe(a.get('formula'))}\n"
             f"  Top hooks: {json.dumps(a.get('top_hooks', [])[:3], ensure_ascii=False)}\n"
-            f"  Ángulos: {', '.join((a.get('angles') or [])[:4])}\n"
+            f"  Angulos: {', '.join((a.get('angles') or [])[:4])}\n"
         )
 
     product_ctx = "".join(
-        f"\n'{p.get('keyword')}': hook={p.get('top_hook')}, ángulo={p.get('top_angle')}, dur={p.get('ideal_duration')}s"
+        f"\n'{p.get('keyword')}': hook={p.get('top_hook')}, angulo={p.get('top_angle')}, dur={p.get('ideal_duration')}s"
         for p in product_data
     )
 
     if mode == "un_creador" and creators_data:
-        strategy = f"Usa ÚNICAMENTE el ADN de @{creators_data[0]['username']}."
+        strategy = f"Usa UNICAMENTE el ADN de @{creators_data[0]['username']}."
     elif mode == "multicreador":
-        strategy = "Fusiona el mejor hook, la estructura más consistente y el CTA que más convierte."
+        strategy = "Fusiona el mejor hook, la estructura mas consistente y el CTA que mas convierte."
     else:
-        strategy = "Decide autónomamente qué tomar de cada fuente para maximizar conversión."
+        strategy = "Decide autonomamente que tomar de cada fuente para maximizar conversion."
 
     prompt = (
         f"Genera exactamente {quantity} scripts TikTok Shop.\n"
@@ -184,7 +176,7 @@ def generate_scripts(
         f"Devuelve SOLO un array JSON con {quantity} objetos:\n"
         "[\n"
         "  {\n"
-        '    "title": "Script 1 — Dato shock",\n'
+        '    "title": "Script 1 - Dato shock",\n'
         '    "duration_estimate": "44s",\n'
         '    "source": "@username",\n'
         '    "hook": {"visual": "...", "textual": "...", "audio": "..."},\n'
@@ -201,7 +193,7 @@ def generate_scripts(
         '    "seo_audio": ["palabra1","palabra2"]\n'
         "  }\n"
         "]\n"
-        "Cada script con ángulo diferente. Solo el array JSON."
+        "Cada script con angulo diferente. Solo el array JSON."
     )
 
     if image_path and os.path.exists(image_path):
@@ -225,8 +217,6 @@ def generate_scripts(
     ))
 
 
-# ─── GLOBAL INSIGHTS ─────────────────────────────────────────────────────────────────────────────
-
 def get_global_insights(all_creators: list[dict]) -> dict:
     blocks = []
     for c in all_creators:
@@ -235,9 +225,9 @@ def get_global_insights(all_creators: list[dict]) -> dict:
             continue
         blocks.append(
             f"@{c['username']} ({c.get('niche', 'General')}):\n"
-            f"  Fórmula: {_safe(a.get('formula'))}\n"
+            f"  Formula: {_safe(a.get('formula'))}\n"
             f"  Hooks: {', '.join(_safe(h.get('text')) for h in (a.get('top_hooks') or [])[:3])}\n"
-            f"  Ángulos: {', '.join((a.get('angles') or [])[:4])}\n"
+            f"  Angulos: {', '.join((a.get('angles') or [])[:4])}\n"
             f"  Avg views: {a.get('avg_views', 0):,}"
         )
 
@@ -245,8 +235,8 @@ def get_global_insights(all_creators: list[dict]) -> dict:
         return {
             "total_videos_analyzed": 0,
             "avg_views_all": 0,
-            "dominant_hook": "—",
-            "best_duration": "—",
+            "dominant_hook": "--",
+            "best_duration": "--",
             "patterns": [],
             "top_angles": [],
             "insights": ["Agrega creadores para ver insights globales."],
