@@ -33,6 +33,7 @@ def init_db():
             creator_id INTEGER NOT NULL,
             tiktok_id TEXT UNIQUE NOT NULL,
             title TEXT,
+            url TEXT,
             views INTEGER DEFAULT 0,
             likes INTEGER DEFAULT 0,
             comments INTEGER DEFAULT 0,
@@ -84,6 +85,14 @@ def init_db():
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
         );
     """)
+
+    # Migration: add url column to videos if it doesn't exist yet
+    try:
+        conn.execute("ALTER TABLE videos ADD COLUMN url TEXT")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
+
     conn.commit()
     conn.close()
 
