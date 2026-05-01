@@ -410,21 +410,24 @@ function renderScriptForm(){
   const cchips=S.creators.map(c=>`<span class="chip${f.cids.includes(c.id)?' sel':''}" onclick="togChip('c',${c.id})">@${esc(c.username)}</span>`).join('');
   const pchips=S.products.map(p=>`<span class="chip${f.pids.includes(p.id)?' sel':''}" onclick="togChip('p',${p.id})">${esc(p.keyword)}</span>`).join('');
   const modes=[['un_creador','Un creador'],['multicreador','Multicreador'],['mejor_de_todos','Mejor de todos']];
-  const mh=modes.map(([v,l])=>`<button class="tb${f.mode===v?' active':''}" onclick="setMode('${v}')">${l}</button>`).join('');
+  const mh=modes.map(([v,l])=>`<button class="tb${f.mode===v?' active':''}" onclick="setMode('${v}'">${l}</button>`).join('');
   const qh=[3,5,10].map(q=>`<button class="tb${f.qty===q?' active':''}" onclick="S.form.qty=${q};renderScriptForm()">${q}</button>`).join('');
+  const uploadArea=f.imgu
+    ?`<img class="upimg" src="${esc(f.imgu)}">` 
+    :`<div style="font-size:22px;margin-bottom:4px">&#128444;</div><div style="font-size:12px;color:var(--t3)">Subir foto del producto</div>`;
   const formHtml=`<div class="sfp">
     <h4>Datos del producto</h4>
     <div class="fg">
       <div class="upa" onclick="$('uinp').click()">
         <input type="file" id="uinp" accept="image/*" style="display:none" onchange="doUpload(event)">
-        ${f.imgu?`<img class="upimg" src="${esc(f.imgu)}">":`<div style="font-size:22px;margin-bottom:4px">&#128444;</div><div style="font-size:12px;color:var(--t3)">Subir foto del producto</div>`}
+        ${uploadArea}
       </div>
     </div>
     <div class="fg"><label class="fl">Nombre del producto *</label>
       <input class="fi" placeholder="ej. Mushroom Coffee" value="${esc(f.name)}" oninput="S.form.name=this.value"></div>
     <div class="fg"><label class="fl">Beneficio principal (opcional)</label>
-      <input class="fi" placeholder="ej. energ&iacute;a sin ansiedad" value="${esc(f.benefit)}" oninput="S.form.benefit=this.value"></div>
-    <div class="fg"><label class="fl">Modo de generaci&oacute;n</label><div class="tg">${mh}</div></div>
+      <input class="fi" placeholder="ej. energia sin ansiedad" value="${esc(f.benefit)}" oninput="S.form.benefit=this.value"></div>
+    <div class="fg"><label class="fl">Modo de generacion</label><div class="tg">${mh}</div></div>
     <div class="fg"><label class="fl">Basar en</label><div class="cw">${cchips}${pchips}</div></div>
     <div class="fg"><label class="fl">Cantidad de scripts</label><div class="tg" style="width:140px">${qh}</div></div>
     <button class="gbtn" onclick="doGenerate()" ${S.gen?'disabled':''}>
@@ -432,9 +435,9 @@ function renderScriptForm(){
     </button>
   </div>`;
   const resHtml=`<div class="srp">
-    ${S.gen?`<div class="empty"><div class="spin"></div><h3>Generando ${f.qty} scripts...</h3><p>Claude est&aacute; analizando el ADN</p></div>`:
+    ${S.gen?`<div class="empty"><div class="spin"></div><h3>Generando ${f.qty} scripts...</h3><p>Claude esta analizando el ADN</p></div>`:
     S.scripts.length?S.scripts.map((s,i)=>mkCard(s,i)).join(''):
-    `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.816 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.816a2 2 0 00-1.272-1.272L3 12l5.816-1.912a2 2 0 001.272-1.272L12 3z"/></svg><h3>Scripts aparecer&aacute;n aqu&iacute;</h3><p>Completa el formulario y haz clic en &quot;Generar scripts&quot;</p></div>`}
+    `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.816 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.816a2 2 0 00-1.272-1.272L3 12l5.816-1.912a2 2 0 001.272-1.272L12 3z"/></svg><h3>Scripts apareceran aqui</h3><p>Completa el formulario y haz clic en Generar scripts</p></div>`}
   </div>`;
   $('tc').innerHTML=`<div class="sl">${formHtml}${resHtml}</div>`;
 }
@@ -537,16 +540,16 @@ function renderProd(p){
   <div class="pmeta">
     <div class="pmi"><label>GMV total</label><span>$${fmtN(p.total_gmv||0)}</span></div>
     <div class="pmi"><label>Hook top</label><span style="font-size:14px">${esc(p.top_hook||'--')}</span></div>
-    <div class="pmi"><label>&Aacute;ngulo top</label><span style="font-size:14px">${esc(p.top_angle||'--')}</span></div>
-    <div class="pmi"><label>Duraci&oacute;n ideal</label><span>${p.ideal_duration||'--'}<small>s</small></span></div>
+    <div class="pmi"><label>Angulo top</label><span style="font-size:14px">${esc(p.top_angle||'--')}</span></div>
+    <div class="pmi"><label>Duracion ideal</label><span>${p.ideal_duration||'--'}<small>s</small></span></div>
   </div>`;
   const vids=p.videos||[];
-  $('pva').innerHTML=`<h4 style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:14px">Videos m&aacute;s efectivos (por GMV)</h4>`+
+  $('pva').innerHTML=`<h4 style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:14px">Videos mas efectivos (por GMV)</h4>`+
     (vids.length?vids.map(v=>`<div class="pvc">
       <div class="pvc-hdr"><span class="pvc-cr">@${esc(v.creator_handle||'?')}</span>
       <div class="pvc-st"><span><b>${fmtN(v.views)}</b> views</span><span>GMV <b>$${fmtN(v.gmv)}</b></span></div></div>
       <div class="pvc-why">${esc(v.why_it_converts||'Analizando...')}</div>
-    </div>`).join(''):`<p style="color:var(--t3);padding:24px;text-align:center">Sin videos a&uacute;n</p>`);
+    </div>`).join(''):`<p style="color:var(--t3);padding:24px;text-align:center">Sin videos aun</p>`);
 }
 
 async function showInsights(){
@@ -565,10 +568,10 @@ function renderIns(d){
       <div class="mc"><div class="mc-lbl">Videos analizados</div><div class="mc-val">${d.total_videos_analyzed||0}</div></div>
       <div class="mc"><div class="mc-lbl">Avg views global</div><div class="mc-val">${fmtN(d.avg_views_all||0)}</div></div>
       <div class="mc"><div class="mc-lbl">Hook dominante</div><div class="mc-val" style="font-size:15px">${esc(d.dominant_hook||'--')}</div></div>
-      <div class="mc"><div class="mc-lbl">Duraci&oacute;n ideal</div><div class="mc-val" style="font-size:15px">${esc(d.best_duration||'--')}</div></div>
+      <div class="mc"><div class="mc-lbl">Duracion ideal</div><div class="mc-val" style="font-size:15px">${esc(d.best_duration||'--')}</div></div>
     </div>
-    ${pats?`<div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:10px">PATRONES DETECTADOS</div>${pats}`:'<p style="color:var(--t3)">Agrega m&aacute;s creadores para detectar patrones.</p>'}
-    ${angs?`<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:8px">TOP &Aacute;NGULOS</div><div class="ang-wrap">${angs}</div></div>`:''}
+    ${pats?`<div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:10px">PATRONES DETECTADOS</div>${pats}`:'<p style="color:var(--t3)">Agrega mas creadores para detectar patrones.</p>'}
+    ${angs?`<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:8px">TOP ANGULOS</div><div class="ang-wrap">${angs}</div></div>`:''}
     ${ins?`<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:8px">INSIGHTS</div><ul class="ins-bul">${ins}</ul></div>`:''}`;  
 }
 
