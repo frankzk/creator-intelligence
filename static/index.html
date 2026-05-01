@@ -14,7 +14,6 @@
   --sw:210px;--rad:8px
 }
 body{display:flex;height:100vh;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:var(--t)}
-/* ── Sidebar ── */
 #sidebar{width:var(--sw);min-width:var(--sw);height:100vh;overflow-y:auto;background:var(--sbg);border-right:1px solid var(--bd);display:flex;flex-direction:column;padding-bottom:16px}
 .sb-hdr{padding:16px 14px 12px;border-bottom:1px solid var(--bd)}
 .sb-title{font-size:15px;font-weight:700}
@@ -38,37 +37,30 @@ body{display:flex;height:100vh;overflow:hidden;background:var(--bg);font-family:
 .sb-add:hover{border-color:var(--p);color:var(--p);background:var(--pl)}
 .sb-ig{margin:auto 10px 0;padding:9px;background:var(--p);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;width:calc(100% - 20px)}
 .sb-ig:hover{background:#6D28D9}
-/* ── Main ── */
 #main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
 .view{display:none;flex:1;flex-direction:column}
 .view.active{display:flex}
-/* Welcome */
 .welcome{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--t3)}
 .welcome-ico{font-size:48px;opacity:.25}
 .welcome h2{font-size:18px;color:var(--t2);font-weight:600}
-/* Tabs */
 .cr-hdr{padding:18px 24px 0;border-bottom:1px solid var(--bd)}
 .tabs{display:flex;padding:0 24px;border-bottom:1px solid var(--bd)}
 .tab{padding:12px 16px;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--t3);transition:all .15s;white-space:nowrap}
 .tab:hover{color:var(--t)}
 .tab.active{color:var(--p);border-bottom-color:var(--p)}
 .tc{flex:1;overflow-y:auto;padding:20px 24px}
-/* Banner */
 .banner{margin:0 24px 16px;padding:10px 14px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--al);border:1px solid #FDE68A}
 .banner-t{font-size:13px;font-weight:500;color:#92400E}
-/* Creator profile */
 .cr-prof{display:flex;align-items:flex-start;gap:12px;padding-bottom:16px}
 .cr-av-lg{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
 .cr-uname{font-size:18px;font-weight:700}
 .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .badge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;background:var(--bg);color:var(--t2)}
-/* Metrics */
 .mg{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 .mc{background:#fff;border:1px solid var(--bd);border-radius:var(--rad);padding:14px}
 .mc-lbl{font-size:11px;color:var(--t3);margin-bottom:6px}
 .mc-val{font-size:22px;font-weight:700;line-height:1}
 .mc-sub{font-size:11px;color:var(--t3);margin-top:4px}
-/* DNA */
 .dna-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
 .dna-card{background:#fff;border:1px solid var(--bd);border-radius:var(--rad);padding:16px}
 .dna-card h4{font-size:12px;font-weight:600;color:var(--t3);margin-bottom:12px}
@@ -79,14 +71,12 @@ body{display:flex;height:100vh;overflow:hidden;background:var(--bg);font-family:
 .hk-pct{font-size:10px;color:var(--t3)}
 .ang-wrap{display:flex;flex-wrap:wrap;gap:6px}
 .ang-tag{padding:4px 10px;border-radius:20px;font-size:12px;background:var(--bg);color:var(--t2)}
-/* Formula */
 .formula-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--rad);padding:16px;margin-bottom:20px}
 .formula-lbl{font-size:10px;font-weight:700;color:var(--g);letter-spacing:.08em;margin-bottom:8px}
 .formula-txt{font-size:13px;color:var(--t2);margin-bottom:12px;line-height:1.5}
 .formula-steps{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fstep{padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;color:#fff}
 .farrow{color:var(--t3);font-size:14px}
-/* Table */
 .vtool{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .vcount{font-size:13px;color:var(--t3)}
 .vsort{padding:5px 8px;border:1px solid var(--bd);border-radius:5px;font-size:12px;background:#fff;cursor:pointer}
@@ -98,7 +88,6 @@ tr:hover td{background:#FAFAFA}
 .hbadge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500}
 .vfoot{margin-top:10px;font-size:12px;color:var(--t3);display:flex;gap:12px}
 .lnk{color:var(--p);cursor:pointer;text-decoration:underline}
-/* Script form */
 .sl{display:grid;grid-template-columns:300px 1fr;gap:20px}
 .sfp{background:#fff;border:1px solid var(--bd);border-radius:var(--rad);padding:16px;align-self:start}
 .sfp h4{font-size:13px;font-weight:600;color:var(--t3);margin-bottom:14px}
@@ -118,13 +107,11 @@ tr:hover td{background:#FAFAFA}
 .gbtn{width:100%;padding:10px;background:var(--t);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;margin-top:4px}
 .gbtn:hover{background:#1F2937}
 .gbtn:disabled{background:var(--t3);cursor:not-allowed}
-/* Script results */
 .srp{display:flex;flex-direction:column;gap:0;min-height:400px}
 .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--t3);padding:40px;text-align:center}
 .empty h3{font-size:16px;color:var(--t2)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin{width:28px;height:28px;border:3px solid var(--bd);border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite}
-/* Script card */
 .scard{background:#fff;border:1px solid var(--bd);border-radius:var(--rad);margin-bottom:16px;overflow:hidden}
 .scard-hdr{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
 .scard-ttl{font-size:14px;font-weight:700;flex:1}
@@ -165,7 +152,6 @@ tr:hover td{background:#FAFAFA}
 .seo-mono{font-family:monospace;font-size:11px;color:var(--t2);background:var(--bg);padding:8px 10px;border-radius:5px;line-height:1.6;word-break:break-all}
 .seo-chips{display:flex;flex-wrap:wrap;gap:4px}
 .seoc{padding:3px 8px;border-radius:20px;font-size:11px;background:var(--bg);color:var(--t2)}
-/* Product */
 .ph{padding:18px 24px 14px;border-bottom:1px solid var(--bd)}
 .pmeta{display:flex;gap:20px;margin-top:10px;flex-wrap:wrap}
 .pmi label{font-size:11px;color:var(--t3);display:block;margin-bottom:2px}
@@ -177,7 +163,6 @@ tr:hover td{background:#FAFAFA}
 .pvc-st{display:flex;gap:12px;font-size:12px;color:var(--t3)}
 .pvc-st b{color:var(--t);font-weight:600}
 .pvc-why{font-size:13px;color:var(--t2);line-height:1.5}
-/* Insights */
 .ins-cnt{padding:20px 24px}
 .pat-item{background:#fff;border:1px solid var(--bd);border-radius:var(--rad);padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;gap:12px}
 .pat-txt{font-size:13px;color:var(--t2);flex:1}
@@ -186,7 +171,6 @@ tr:hover td{background:#FAFAFA}
 .ins-bul{list-style:none;margin-top:8px}
 .ins-bul li{padding:6px 0;font-size:13px;color:var(--t2);display:flex;gap:8px;border-bottom:1px solid var(--bdl)}
 .ins-bul li::before{content:"→";color:var(--p)}
-/* Modal */
 .mo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
 .mo.h{display:none}
 .mc2{background:#fff;border-radius:10px;padding:24px;width:380px;max-width:92vw}
@@ -201,7 +185,7 @@ tr:hover td{background:#FAFAFA}
 </head>
 <body>
 <aside id="sidebar">
-  <div class="sb-hdr"><div class="sb-title">Creator Intelligence</div><div class="sb-sub">TikTok Shop · Script Generator</div></div>
+  <div class="sb-hdr"><div class="sb-title">Creator Intelligence</div><div class="sb-sub">TikTok Shop &middot; Script Generator</div></div>
   <div class="sb-sec"><span class="sb-lbl">CREADORES</span><div id="cl"></div></div>
   <button class="sb-add" onclick="openModal('c')">+ Agregar creador</button>
   <div class="sb-sec" style="margin-top:8px"><span class="sb-lbl">PRODUCTOS (KALODATA)</span><div id="pl"></div></div>
@@ -209,7 +193,7 @@ tr:hover td{background:#FAFAFA}
   <button class="sb-ig" onclick="showInsights()">Insights globales</button>
 </aside>
 <main id="main">
-  <div class="view active" id="view-welcome"><div class="welcome"><div class="welcome-ico">✦</div><h2>Creator Intelligence</h2><p>Agrega un creador o busca un producto para comenzar</p></div></div>
+  <div class="view active" id="view-welcome"><div class="welcome"><div class="welcome-ico">&#10022;</div><h2>Creator Intelligence</h2><p>Agrega un creador o busca un producto para comenzar</p></div></div>
   <div class="view" id="view-creator">
     <div id="cr-banner"></div>
     <div class="cr-hdr" id="cr-hdr"></div>
@@ -231,7 +215,6 @@ tr:hover td{background:#FAFAFA}
   </div>
 </div>
 <script>
-/* ── State ── */
 const S={
   creators:[],products:[],
   cid:null,pid:null,
@@ -243,19 +226,17 @@ const S={
   polls:{}
 };
 
-/* ── Utils ── */
 const $=id=>document.getElementById(id);
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtN(n){n=Number(n)||0;if(n>=1e6)return(n/1e6).toFixed(1).replace('.0','')+'M';if(n>=1e3)return Math.round(n/1e3)+'K';return String(n);}
-function fmtD(ts){if(!ts)return'—';const d=new Date(ts.includes('T')?ts:ts+' UTC');const s=Math.round((Date.now()-d)/1000);if(s<60)return'hace un momento';if(s<3600)return`hace ${Math.round(s/60)}m`;if(s<86400)return`hace ${Math.round(s/3600)}h`;return`hace ${Math.round(s/86400)}d`;}
+function fmtD(ts){if(!ts)return'--';const d=new Date(ts.includes('T')?ts:ts+' UTC');const s=Math.round((Date.now()-d)/1000);if(s<60)return'hace un momento';if(s<3600)return`hace ${Math.round(s/60)}m`;if(s<86400)return`hace ${Math.round(s/3600)}h`;return`hace ${Math.round(s/86400)}d`;}
 const COLS=['#7C3AED','#059669','#2563EB','#DC2626','#D97706','#0891B2','#DB2777','#9333EA'];
 function avcol(i){return COLS[i%COLS.length];}
 function inits(n){return String(n||'').slice(0,2).toUpperCase();}
-function hkCol(h){const m={'Dato shock':['#EDE9FE','#5B21B6'],'Contraste':['#FFEDD5','#C2410C'],'Directo':['#D1FAE5','#065F46'],'Testimonio':['#DBEAFE','#1E40AF'],'Comparación':['#FEF3C7','#92400E']};return m[h]||['#F3F4F6','#374151'];}
+function hkCol(h){const m={'Dato shock':['#EDE9FE','#5B21B6'],'Contraste':['#FFEDD5','#C2410C'],'Directo':['#D1FAE5','#065F46'],'Testimonio':['#DBEAFE','#1E40AF'],'Comparacion':['#FEF3C7','#92400E']};return m[h]||['#F3F4F6','#374151'];}
 function scCol(l){const m={Hook:'#7C3AED',Dolor:'#EF4444',Descubrimiento:'#3B82F6',Prueba:'#10B981',CTA:'#F59E0B'};return m[l]||'#6B7280';}
 function parseDur(t){const m=String(t||'').match(/(\d+)\D+(\d+)/);return m?+m[2]-+m[1]:0;}
 
-/* ── API ── */
 async function api(method,path,body){
   const o={method,headers:{}};
   if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body);}
@@ -264,7 +245,6 @@ async function api(method,path,body){
   return r.json();
 }
 
-/* ── Init ── */
 async function loadAll(){
   const [creators,products]=await Promise.all([api('GET','/api/creators'),api('GET','/api/products')]);
   S.creators=creators;S.products=products;
@@ -274,7 +254,6 @@ async function loadAll(){
   });
 }
 
-/* ── Sidebar ── */
 function renderSB(){
   $('cl').innerHTML=S.creators.map((c,i)=>{
     const dc=c.status==='done'?'dg':c.status==='error'?'dr':'da dp';
@@ -283,7 +262,7 @@ function renderSB(){
       <div class="sb-av" style="background:${avcol(i)}">${inits(c.display_name||c.username)}</div>
       <div class="sb-inf"><div class="sb-name">${esc(c.display_name||c.username)}</div>
       <div class="sb-meta"><span class="dot ${dc}"></span>${esc(meta)}</div></div>
-      <button class="sb-ref" onclick="event.stopPropagation();refC(${c.id})" title="Actualizar">↻</button>
+      <button class="sb-ref" onclick="event.stopPropagation();refC(${c.id})" title="Actualizar">&#8635;</button>
     </div>`;
   }).join('');
   $('pl').innerHTML=S.products.map((p,i)=>{
@@ -297,11 +276,9 @@ function renderSB(){
   }).join('');
 }
 
-/* ── View switching ── */
 function showView(v){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$(`view-${v}`).classList.add('active');S.view=v;}
 function switchTab(t){S.tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));renderTC();}
 
-/* ── Creator ── */
 async function selC(id){
   S.cid=id;S.pid=null;S.scripts=[];renderSB();showView('creator');
   try{S.det=await api('GET',`/api/creators/${id}`);renderCrHdr();renderBanner();renderTC();if(!['done','error'].includes(S.det.status))startPoll(id,true);}
@@ -330,29 +307,32 @@ function renderBanner(){
 
 function renderTC(){if(!S.det)return;if(S.tab==='adn')renderADN();else if(S.tab==='videos')loadVids();else renderScriptForm();}
 
-/* ── ADN Tab ── */
 function renderADN(){
   const c=S.det,a=c.analysis||{};
   const hooks=a.top_hooks||[],angles=a.angles||[],steps=a.formula_steps||[];
   const mg=`<div class="mg">
     <div class="mc"><div class="mc-lbl">Promedio views</div><div class="mc-val">${fmtN(a.avg_views||0)}</div><div class="mc-sub">por video</div></div>
     <div class="mc"><div class="mc-lbl">Videos +1M</div><div class="mc-val">${c.videos_1m||0}</div><div class="mc-sub">de ${c.video_count||0}</div></div>
-    <div class="mc"><div class="mc-lbl">Duración top</div><div class="mc-val">${a.avg_duration||'—'}<small style="font-size:13px">s</small></div><div class="mc-sub">promedio</div></div>
-    <div class="mc"><div class="mc-lbl">Hook dominante</div><div class="mc-val" style="font-size:15px">${esc(a.dominant_hook||'—')}</div></div>
+    <div class="mc"><div class="mc-lbl">Duraci&oacute;n top</div><div class="mc-val">${a.avg_duration||'--'}<small style="font-size:13px">s</small></div><div class="mc-sub">promedio</div></div>
+    <div class="mc"><div class="mc-lbl">Hook dominante</div><div class="mc-val" style="font-size:15px">${esc(a.dominant_hook||'--')}</div></div>
   </div>`;
-  const hh=hooks.map(h=>`<div class="hk-row"><div class="hk-txt">"${esc(h.text)}"</div><div class="hk-bar-w"><div class="hk-bar" style="width:${h.performance_pct||0}%"></div></div><div class="hk-pct">${h.performance_pct||0}% · ${h.count||0} videos</div></div>`).join('');
+  const hh=hooks.map(h=>{
+    const exLink=h.example_url
+      ?`<a href="${esc(h.example_url)}" target="_blank" style="font-size:10px;color:var(--p);text-decoration:none;margin-left:6px">&#9654; ver ejemplo</a>`
+      :'';
+    return`<div class="hk-row"><div class="hk-txt">"${esc(h.text)}"</div><div class="hk-bar-w"><div class="hk-bar" style="width:${h.performance_pct||0}%"></div></div><div class="hk-pct">${h.performance_pct||0}% &middot; ${h.count||0} videos${exLink}</div></div>`;
+  }).join('');
   const ah=angles.map(a=>`<span class="ang-tag">${esc(a)}</span>`).join('');
-  const sh=steps.map((s,i)=>`${i>0?'<span class="farrow">→</span>':''}<span class="fstep" style="background:${s.color||'#6B7280'}">${esc(s.label)}</span>`).join('');
+  const sh=steps.map((s,i)=>`${i>0?'<span class="farrow">&rarr;</span>':''}<span class="fstep" style="background:${s.color||'#6B7280'}">${esc(s.label)}</span>`).join('');
   const dna=hooks.length?`<div class="dna-grid">
-    <div class="dna-card"><h4>Hooks más efectivos (por performance)</h4>${hh||'<span style="color:var(--t3)">Sin datos</span>'}</div>
-    <div class="dna-card"><h4>Ángulos de producto que convierten</h4><div class="ang-wrap">${ah||'<span style="color:var(--t3)">Sin datos</span>'}</div></div>
+    <div class="dna-card"><h4>Hooks m&aacute;s efectivos (por performance)</h4>${hh||'<span style="color:var(--t3)">Sin datos</span>'}</div>
+    <div class="dna-card"><h4>&Aacute;ngulos de producto que convierten</h4><div class="ang-wrap">${ah||'<span style="color:var(--t3)">Sin datos</span>'}</div></div>
   </div>`:'';
-  const fml=a.formula?`<div class="formula-box"><div class="formula-lbl">● FÓRMULA DEL CREADOR</div><div class="formula-txt">${esc(a.formula)}</div><div class="formula-steps">${sh}</div></div>`:'';
-  const none=!a.formula&&!hooks.length?`<div style="padding:28px;text-align:center;color:var(--t3)">${c.status==='done'?'No hay análisis disponible.':'Análisis en progreso...'}</div>`:'';
+  const fml=a.formula?`<div class="formula-box"><div class="formula-lbl">&bull; F&Oacute;RMULA DEL CREADOR</div><div class="formula-txt">${esc(a.formula)}</div><div class="formula-steps">${sh}</div></div>`:'';
+  const none=!a.formula&&!hooks.length?`<div style="padding:28px;text-align:center;color:var(--t3)">${c.status==='done'?'No hay an&aacute;lisis disponible.':'An&aacute;lisis en progreso...'}</div>`:'';
   $('tc').innerHTML=mg+dna+fml+none;
 }
 
-/* ── Videos Tab ── */
 async function loadVids(page){
   page=page||S.vids.page;
   try{
@@ -363,30 +343,46 @@ async function loadVids(page){
 
 function renderVids(){
   const{list,total,page,pp,sort}=S.vids;
-  const rows=list.map(v=>{const[bg,fg]=hkCol(v.hook_type);return`<tr>
-    <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(v.title)}">${esc((v.title||'').slice(0,42))}${(v.title||'').length>42?'…':''}</td>
-    <td style="font-weight:600">${fmtN(v.views)}</td>
-    <td><span class="hbadge" style="background:${bg};color:${fg}">${esc(v.hook_type||'—')}</span></td>
-    <td style="color:var(--t3)">${esc((v.title||'').split(' ').slice(0,3).join(' '))}</td>
-    <td>${v.duration||0}s</td></tr>`;}).join('');
+  const rows=list.map(v=>{
+    const[bg,fg]=hkCol(v.hook_type);
+    const thumb=v.thumbnail
+      ?`<img src="${esc(v.thumbnail)}" style="width:48px;height:64px;object-fit:cover;border-radius:4px" loading="lazy">`
+      :`<div style="width:48px;height:64px;background:var(--bg);border-radius:4px;border:1px solid var(--bd)"></div>`;
+    const titleCell=v.url
+      ?`<a href="${esc(v.url)}" target="_blank" style="color:var(--t);text-decoration:none" title="${esc(v.title)}">${esc((v.title||'').slice(0,40))}${(v.title||'').length>40?'&hellip;':''}</a>`
+      :`${esc((v.title||'').slice(0,40))}`;
+    const date=v.published_at?v.published_at.slice(0,10):'--';
+    const tags=(v.hashtags||'').split(' ').filter(Boolean).slice(0,3)
+      .map(t=>`<span style="font-size:10px;background:var(--pl);color:var(--p);padding:2px 5px;border-radius:10px">${esc(t)}</span>`).join(' ');
+    return`<tr>
+      <td style="padding:6px 8px">${thumb}</td>
+      <td style="max-width:180px">${titleCell}</td>
+      <td style="color:var(--t3);white-space:nowrap;font-size:12px">${date}</td>
+      <td style="font-weight:600">${fmtN(v.views)}</td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">${fmtN(v.likes||0)} &#10084; ${fmtN(v.comments||0)} &#128172;</td>
+      <td><span class="hbadge" style="background:${bg};color:${fg}">${esc(v.hook_type||'--')}</span></td>
+      <td style="font-size:11px">${tags}</td>
+      <td>${v.duration||0}s</td>
+    </tr>`;
+  }).join('');
   const shown=Math.min(page*pp,total);
   $('tc').innerHTML=`<div class="vtool">
-    <span class="vcount">${total} videos · ordenados por ${sort==='views'?'views':sort==='hook_type'?'hook':'duración'}</span>
+    <span class="vcount">${total} videos &middot; ordenados por ${sort==='views'?'views':sort==='hook_type'?'hook':sort==='published_at'?'fecha':'duraci&oacute;n'}</span>
     <select class="vsort" onchange="S.vids.sort=this.value;loadVids(1)">
       <option value="views"${sort==='views'?' selected':''}>Ordenar: Views</option>
+      <option value="published_at"${sort==='published_at'?' selected':''}>Ordenar: Fecha</option>
       <option value="hook_type"${sort==='hook_type'?' selected':''}>Ordenar: Hook type</option>
-      <option value="duration"${sort==='duration'?' selected':''}>Ordenar: Duración</option>
+      <option value="duration"${sort==='duration'?' selected':''}>Ordenar: Duraci&oacute;n</option>
     </select></div>
-  <table><thead><tr><th>Video</th><th>Views</th><th>Hook</th><th>Producto</th><th>Dur.</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--t3)">Sin videos</td></tr>'}</tbody></table>
+  <table><thead><tr><th></th><th>Video</th><th>Fecha</th><th>Views</th><th>Likes / Coment.</th><th>Hook</th><th>Hashtags</th><th>Dur.</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--t3)">Sin videos</td></tr>'}</tbody></table>
   <div class="vfoot"><span>Mostrando ${shown} de ${total}</span>
-    ${page>1?`<span class="lnk" onclick="loadVids(${page-1})">← ant</span>`:''}
-    ${shown<total?`<span class="lnk" onclick="loadVids(${page+1})">sig →</span>`:''}
+    ${page>1?`<span class="lnk" onclick="loadVids(${page-1})">&larr; ant</span>`:''}
+    ${shown<total?`<span class="lnk" onclick="loadVids(${page+1})">sig &rarr;</span>`:''}
     ${total>pp?`<span class="lnk" onclick="S.vids.pp=100;loadVids(1)">ver todos</span>`:''}
   </div>`;
 }
 
-/* ── Polling ── */
 function startPoll(id,isC){
   const k=`${isC?'c':'p'}_${id}`;if(S.polls[k])return;
   S.polls[k]=setInterval(async()=>{
@@ -408,7 +404,6 @@ async function refC(id){
   catch(e){alert(e.message);}
 }
 
-/* ── Script Form ── */
 function renderScriptForm(){
   const f=S.form;
   if(S.cid&&!f.cids.includes(S.cid))f.cids=[S.cid];
@@ -422,14 +417,14 @@ function renderScriptForm(){
     <div class="fg">
       <div class="upa" onclick="$('uinp').click()">
         <input type="file" id="uinp" accept="image/*" style="display:none" onchange="doUpload(event)">
-        ${f.imgu?`<img class="upimg" src="${esc(f.imgu)}">`:`<div style="font-size:22px;margin-bottom:4px">🖼</div><div style="font-size:12px;color:var(--t3)">Subir foto del producto</div>`}
+        ${f.imgu?`<img class="upimg" src="${esc(f.imgu)}">":`<div style="font-size:22px;margin-bottom:4px">&#128444;</div><div style="font-size:12px;color:var(--t3)">Subir foto del producto</div>`}
       </div>
     </div>
     <div class="fg"><label class="fl">Nombre del producto *</label>
       <input class="fi" placeholder="ej. Mushroom Coffee" value="${esc(f.name)}" oninput="S.form.name=this.value"></div>
     <div class="fg"><label class="fl">Beneficio principal (opcional)</label>
-      <input class="fi" placeholder="ej. energía sin ansiedad" value="${esc(f.benefit)}" oninput="S.form.benefit=this.value"></div>
-    <div class="fg"><label class="fl">Modo de generación</label><div class="tg">${mh}</div></div>
+      <input class="fi" placeholder="ej. energ&iacute;a sin ansiedad" value="${esc(f.benefit)}" oninput="S.form.benefit=this.value"></div>
+    <div class="fg"><label class="fl">Modo de generaci&oacute;n</label><div class="tg">${mh}</div></div>
     <div class="fg"><label class="fl">Basar en</label><div class="cw">${cchips}${pchips}</div></div>
     <div class="fg"><label class="fl">Cantidad de scripts</label><div class="tg" style="width:140px">${qh}</div></div>
     <button class="gbtn" onclick="doGenerate()" ${S.gen?'disabled':''}>
@@ -437,9 +432,9 @@ function renderScriptForm(){
     </button>
   </div>`;
   const resHtml=`<div class="srp">
-    ${S.gen?`<div class="empty"><div class="spin"></div><h3>Generando ${f.qty} scripts...</h3><p>Claude está analizando el ADN</p></div>`:
+    ${S.gen?`<div class="empty"><div class="spin"></div><h3>Generando ${f.qty} scripts...</h3><p>Claude est&aacute; analizando el ADN</p></div>`:
     S.scripts.length?S.scripts.map((s,i)=>mkCard(s,i)).join(''):
-    `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.816 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.816a2 2 0 00-1.272-1.272L3 12l5.816-1.912a2 2 0 001.272-1.272L12 3z"/></svg><h3>Scripts aparecerán aquí</h3><p>Completa el formulario y haz clic en "Generar scripts"</p></div>`}
+    `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.816 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.816a2 2 0 00-1.272-1.272L3 12l5.816-1.912a2 2 0 001.272-1.272L12 3z"/></svg><h3>Scripts aparecer&aacute;n aqu&iacute;</h3><p>Completa el formulario y haz clic en &quot;Generar scripts&quot;</p></div>`}
   </div>`;
   $('tc').innerHTML=`<div class="sl">${formHtml}${resHtml}</div>`;
 }
@@ -470,7 +465,6 @@ async function doGenerate(){
   S.gen=false;renderScriptForm();
 }
 
-/* ── Script Card ── */
 function mkCard(s,i){
   const scenes=s.scenes||[];
   const total=scenes.reduce((sum,sc)=>sum+parseDur(sc.timing),0)||scenes.length*8;
@@ -487,7 +481,7 @@ function mkCard(s,i){
       <div class="scard-ttl">${esc(s.title)}</div>
       <span class="sdur">${esc(s.duration_estimate)}</span>
       <span class="ssrc">${esc(s.source)}</span>
-      <div class="sacts"><button class="abtn" onclick="cpScript(${i})">📋 Copiar</button><button class="abtn" onclick="dlScript(${i})">⬇ .txt</button></div>
+      <div class="sacts"><button class="abtn" onclick="cpScript(${i})">&#128203; Copiar</button><button class="abtn" onclick="dlScript(${i})">&#8595; .txt</button></div>
     </div>
     <div class="sbody">
       <div class="hook-s">
@@ -499,24 +493,23 @@ function mkCard(s,i){
       <div class="scenes">${scns}</div>
       <div class="desc-w"><span class="desc-t">${esc(s.description||'')}</span><button class="cbtn" onclick="cpTxt('${esc(s.description||'')}',this)">Copiar</button></div>
       ${htH}
-      <div class="seo-w"><div class="seo-lbl">SEO texto oculto <span style="font-weight:400;color:var(--t3)">(pegar al final con color fondo)</span></div><div class="seo-mono">${(s.seo_hidden||[]).join(' · ')}</div></div>
-      <div class="seo-w"><div class="seo-lbl">SEO audio — di en voz alta</div><div class="seo-chips">${(s.seo_audio||[]).map(w=>`<span class="seoc">${esc(w)}</span>`).join('')}</div></div>
+      <div class="seo-w"><div class="seo-lbl">SEO texto oculto <span style="font-weight:400;color:var(--t3)">(pegar al final con color fondo)</span></div><div class="seo-mono">${(s.seo_hidden||[]).join(' &middot; ')}</div></div>
+      <div class="seo-w"><div class="seo-lbl">SEO audio &mdash; di en voz alta</div><div class="seo-chips">${(s.seo_audio||[]).map(w=>`<span class="seoc">${esc(w)}</span>`).join('')}</div></div>
     </div>
   </div>`;
 }
 
-/* ── Export ── */
 function buildTxt(s){
-  const sep='═══════════════════════════════════════';
-  const sec=l=>`\n── ${l} ${'─'.repeat(Math.max(0,34-l.length))}\n`;
-  let t=`${sep}\n${s.title} · ${S.form.name}\n${s.duration_estimate} · ${s.source}\n${sep}`;
+  const sep='=====================================';
+  const sec=l=>`\n-- ${l} ${'--'.repeat(Math.max(0,17-l.length))}\n`;
+  let t=`${sep}\n${s.title} - ${S.form.name}\n${s.duration_estimate} - ${s.source}\n${sep}`;
   t+=sec('HOOK');t+=`VISUAL: ${s.hook?.visual||''}\nTEXTUAL: ${s.hook?.textual||''}\nAUDIO: ${s.hook?.audio||''}`;
   t+=sec('SCRIPT');
-  (s.scenes||[]).forEach(sc=>{t+=`\n${sc.label} (${sc.timing})\nGUIÓN: ${sc.script}\nDIRECCIÓN:\n`;(sc.direction||[]).forEach(d=>{t+=`  • ${d}\n`;});});
-  t+=sec('DESCRIPCIÓN');t+=s.description||'';
+  (s.scenes||[]).forEach(sc=>{t+=`\n${sc.label} (${sc.timing})\nGUION: ${sc.script}\nDIRECCION:\n`;(sc.direction||[]).forEach(d=>{t+=`  - ${d}\n`;});});
+  t+=sec('DESCRIPCION');t+=s.description||'';
   t+=sec('HASHTAGS');const ht=s.hashtags||{};t+=[...(ht.viral||[]),...(ht.product||[]),...(ht.niche||[])].join(' ');
   t+=sec('SEO TEXTO OCULTO');t+='(Pegar al final con texto color fondo)\n'+(s.seo_hidden||[]).join(' ');
-  t+=sec('SEO AUDIO (DI EN VOZ ALTA)');t+=(s.seo_audio||[]).join(' · ');
+  t+=sec('SEO AUDIO (DI EN VOZ ALTA)');t+=(s.seo_audio||[]).join(' - ');
   return t;
 }
 function cpScript(i){const s=S.scripts[i];if(s)cpTxt(buildTxt(s));}
@@ -526,10 +519,9 @@ function dlScript(i){
   a.download=`script-${i+1}.txt`;a.click();URL.revokeObjectURL(a.href);
 }
 function cpTxt(txt,btn){
-  navigator.clipboard.writeText(txt).then(()=>{if(btn){const o=btn.textContent;btn.textContent='✓';setTimeout(()=>btn.textContent=o,1500);}}).catch(()=>alert('No se pudo copiar'));
+  navigator.clipboard.writeText(txt).then(()=>{if(btn){const o=btn.textContent;btn.textContent='OK';setTimeout(()=>btn.textContent=o,1500);}}).catch(()=>alert('No se pudo copiar'));
 }
 
-/* ── Product ── */
 async function selP(id){
   S.pid=id;S.cid=null;renderSB();showView('product');
   try{const d=await api('GET',`/api/products/${id}`);S.pdet=d;renderProd(d);if(!['done','error'].includes(d.status))startPoll(id,false);}
@@ -544,20 +536,19 @@ function renderProd(p){
     </div></div></div>
   <div class="pmeta">
     <div class="pmi"><label>GMV total</label><span>$${fmtN(p.total_gmv||0)}</span></div>
-    <div class="pmi"><label>Hook top</label><span style="font-size:14px">${esc(p.top_hook||'—')}</span></div>
-    <div class="pmi"><label>Ángulo top</label><span style="font-size:14px">${esc(p.top_angle||'—')}</span></div>
-    <div class="pmi"><label>Duración ideal</label><span>${p.ideal_duration||'—'}<small>s</small></span></div>
+    <div class="pmi"><label>Hook top</label><span style="font-size:14px">${esc(p.top_hook||'--')}</span></div>
+    <div class="pmi"><label>&Aacute;ngulo top</label><span style="font-size:14px">${esc(p.top_angle||'--')}</span></div>
+    <div class="pmi"><label>Duraci&oacute;n ideal</label><span>${p.ideal_duration||'--'}<small>s</small></span></div>
   </div>`;
   const vids=p.videos||[];
-  $('pva').innerHTML=`<h4 style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:14px">Videos más efectivos (por GMV)</h4>`+
+  $('pva').innerHTML=`<h4 style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:14px">Videos m&aacute;s efectivos (por GMV)</h4>`+
     (vids.length?vids.map(v=>`<div class="pvc">
       <div class="pvc-hdr"><span class="pvc-cr">@${esc(v.creator_handle||'?')}</span>
       <div class="pvc-st"><span><b>${fmtN(v.views)}</b> views</span><span>GMV <b>$${fmtN(v.gmv)}</b></span></div></div>
       <div class="pvc-why">${esc(v.why_it_converts||'Analizando...')}</div>
-    </div>`).join(''):`<p style="color:var(--t3);padding:24px;text-align:center">Sin videos aún</p>`);
+    </div>`).join(''):`<p style="color:var(--t3);padding:24px;text-align:center">Sin videos a&uacute;n</p>`);
 }
 
-/* ── Insights ── */
 async function showInsights(){
   S.cid=null;S.pid=null;renderSB();showView('insights');
   $('ic').innerHTML='<div class="empty"><div class="spin"></div><p>Cargando insights...</p></div>';
@@ -573,15 +564,14 @@ function renderIns(d){
     <div class="mg">
       <div class="mc"><div class="mc-lbl">Videos analizados</div><div class="mc-val">${d.total_videos_analyzed||0}</div></div>
       <div class="mc"><div class="mc-lbl">Avg views global</div><div class="mc-val">${fmtN(d.avg_views_all||0)}</div></div>
-      <div class="mc"><div class="mc-lbl">Hook dominante</div><div class="mc-val" style="font-size:15px">${esc(d.dominant_hook||'—')}</div></div>
-      <div class="mc"><div class="mc-lbl">Duración ideal</div><div class="mc-val" style="font-size:15px">${esc(d.best_duration||'—')}</div></div>
+      <div class="mc"><div class="mc-lbl">Hook dominante</div><div class="mc-val" style="font-size:15px">${esc(d.dominant_hook||'--')}</div></div>
+      <div class="mc"><div class="mc-lbl">Duraci&oacute;n ideal</div><div class="mc-val" style="font-size:15px">${esc(d.best_duration||'--')}</div></div>
     </div>
-    ${pats?`<div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:10px">PATRONES DETECTADOS</div>${pats}`:'<p style="color:var(--t3)">Agrega más creadores para detectar patrones.</p>'}
-    ${angs?`<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:8px">TOP ÁNGULOS</div><div class="ang-wrap">${angs}</div></div>`:''}
-    ${ins?`<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:8px">INSIGHTS</div><ul class="ins-bul">${ins}</ul></div>`:''}`;
+    ${pats?`<div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:10px">PATRONES DETECTADOS</div>${pats}`:'<p style="color:var(--t3)">Agrega m&aacute;s creadores para detectar patrones.</p>'}
+    ${angs?`<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:8px">TOP &Aacute;NGULOS</div><div class="ang-wrap">${angs}</div></div>`:''}
+    ${ins?`<div style="margin-top:16px"><div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:8px">INSIGHTS</div><ul class="ins-bul">${ins}</ul></div>`:''}`;  
 }
 
-/* ── Modals ── */
 function openModal(type){
   $('mo').classList.remove('h');
   if(type==='c'){
@@ -618,9 +608,7 @@ async function subProduct(){
   }catch(e){alert(e.message);btn.disabled=false;btn.textContent='Buscar y analizar';}
 }
 
-/* ── Start ── */
 loadAll();
-
 </script>
 </body>
 </html>
