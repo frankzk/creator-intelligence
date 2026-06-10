@@ -8,7 +8,7 @@ from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -25,6 +25,7 @@ from analyzer import (
     classify_hook_type, generate_scripts, get_global_insights,
 )
 from kalodata import scrape_kalodata_sync
+import videofactory as vf
 
 # ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -32,10 +33,12 @@ Path("uploads").mkdir(exist_ok=True)
 Path("temp_audio").mkdir(exist_ok=True)
 
 init_db()
+vf.ensure_dirs()
 
 app = FastAPI(title="Creator Intelligence", version="1.0.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/factory", StaticFiles(directory="factory"), name="factory")
 
 
 @app.get("/")
@@ -316,6 +319,234 @@ async def upload_image(file: UploadFile = File(...)):
     with open(filepath, "wb") as f:
         f.write(await file.read())
     return {"filename": filename, "url": f"/uploads/{filename}"}
+
+
+# ─── Fábrica de creativos ─────────────────────────────────────────────────────
+
+VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+
+
+@app.post("/api/factory/modules")
+async def factory_upload_module(
+    file: UploadFile = File(...),
+    type: str = Form(...),
+    tags: str = Form(""),
+    overlay_text: str = Form(""),
+):
+    if type not in vf.TYPE_PREFIX:
+        raise HTTPException(400, "type debe ser hook, body o cta")
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in VIDEO_EXTS:
+        raise HTTPException(400, "Formato no soportado (mp4, mov, m4v, webm, mkv).")
+
+    vf.ensure_dirs()
+    conn = get_conn()
+    label = vf.next_label(conn, type)
+    src_path = vf.SRC_DIR / f"{label}{ext}"
+    with open(src_path, "wb") as f:
+        f.write(await file.read())
+
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    conn.execute("""
+        INSERT INTO factory_modules (type, label, original_name, src_path, tags, overlay_text)
+        VALUES (?,?,?,?,?,?)
+    """, (type, label, file.filename, str(src_path),
+          json.dumps(tag_list, ensure_ascii=False), overlay_text.strip()))
+    conn.commit()
+    module_id = conn.execute(
+        "SELECT id FROM factory_modules WHERE label=?", (label,)
+    ).fetchone()["id"]
+    conn.close()
+
+    vf.kick_pipeline()
+    return {"id": module_id, "label": label, "status": "uploaded"}
+
+
+@app.get("/api/factory/modules")
+async def factory_list_modules():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM factory_modules ORDER BY type, id").fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["tags"] = json.loads(d.get("tags") or "[]")
+        d.pop("words", None)
+        out.append(d)
+    return out
+
+
+class ModulePatch(BaseModel):
+    overlay_text: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+@app.patch("/api/factory/modules/{module_id}")
+async def factory_patch_module(module_id: int, req: ModulePatch):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM factory_modules WHERE id=?", (module_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Módulo no encontrado")
+    if req.tags is not None:
+        conn.execute("UPDATE factory_modules SET tags=? WHERE id=?",
+                     (json.dumps(req.tags, ensure_ascii=False), module_id))
+    rerender = False
+    if req.overlay_text is not None and req.overlay_text != row["overlay_text"]:
+        # El overlay va horneado en el segmento → re-renderizar solo este módulo
+        rerender = row["status"] in ("ready", "error") and bool(row["norm_path"])
+        conn.execute(
+            "UPDATE factory_modules SET overlay_text=?, status=CASE WHEN ? THEN 'transcribed' ELSE status END WHERE id=?",
+            (req.overlay_text.strip(), rerender, module_id),
+        )
+    conn.commit()
+    conn.close()
+    if rerender:
+        vf.kick_pipeline()
+    return {"status": "ok", "rerender": rerender}
+
+
+@app.delete("/api/factory/modules/{module_id}")
+async def factory_delete_module(module_id: int):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM factory_modules WHERE id=?", (module_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Módulo no encontrado")
+    combos = conn.execute(
+        "SELECT output_path FROM factory_combos WHERE hook_id=? OR body_id=? OR cta_id=?",
+        (module_id, module_id, module_id),
+    ).fetchall()
+    for c in combos:
+        if c["output_path"]:
+            Path(c["output_path"]).unlink(missing_ok=True)
+    conn.execute(
+        "DELETE FROM factory_combos WHERE hook_id=? OR body_id=? OR cta_id=?",
+        (module_id, module_id, module_id),
+    )
+    conn.execute("DELETE FROM factory_modules WHERE id=?", (module_id,))
+    conn.commit()
+    conn.close()
+    for p in (row["src_path"], row["norm_path"], row["seg_path"]):
+        if p:
+            Path(p).unlink(missing_ok=True)
+    vf.write_manifest()
+    return {"status": "deleted"}
+
+
+class GenerateCombosRequest(BaseModel):
+    product_name: str = ""
+    min_duration: float = 20.0
+    max_duration: float = 45.0
+
+
+@app.post("/api/factory/combos/generate")
+async def factory_generate_combos(req: GenerateCombosRequest):
+    conn = get_conn()
+    counts = {t: conn.execute(
+        "SELECT COUNT(*) AS n FROM factory_modules WHERE type=? AND status='ready'", (t,)
+    ).fetchone()["n"] for t in ("hook", "body", "cta")}
+    conn.close()
+    missing = [t for t, n in counts.items() if n == 0]
+    if missing:
+        raise HTTPException(400, f"Faltan módulos listos de tipo: {', '.join(missing)}")
+    vf.kick_combos(req.product_name, req.min_duration, req.max_duration)
+    return {"status": "generating", "ready_modules": counts}
+
+
+@app.get("/api/factory/combos")
+async def factory_list_combos():
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT co.*, h.label AS hook_label, b.label AS body_label, c.label AS cta_label
+        FROM factory_combos co
+        JOIN factory_modules h ON h.id = co.hook_id
+        JOIN factory_modules b ON b.id = co.body_id
+        JOIN factory_modules c ON c.id = co.cta_id
+        ORDER BY co.score DESC NULLS LAST, co.name
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.delete("/api/factory/combos")
+async def factory_clear_combos():
+    conn = get_conn()
+    rows = conn.execute("SELECT output_path FROM factory_combos").fetchall()
+    conn.execute("DELETE FROM factory_combos")
+    conn.commit()
+    conn.close()
+    for r in rows:
+        if r["output_path"]:
+            Path(r["output_path"]).unlink(missing_ok=True)
+    vf.write_manifest()
+    return {"status": "cleared", "deleted": len(rows)}
+
+
+@app.post("/api/factory/combos/{combo_id}/published")
+async def factory_mark_published(combo_id: int):
+    conn = get_conn()
+    cur = conn.execute(
+        "UPDATE factory_combos SET published_at=CURRENT_TIMESTAMP WHERE id=?", (combo_id,)
+    )
+    conn.commit()
+    conn.close()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Combo no encontrado")
+    vf.write_manifest()
+    return {"status": "published"}
+
+
+@app.get("/api/factory/queue")
+async def factory_queue(n: int = 6):
+    """Cola del día: los mejores combos listos aún sin publicar."""
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT * FROM factory_combos
+        WHERE status='ready' AND published_at IS NULL
+        ORDER BY score DESC NULLS LAST, name LIMIT ?
+    """, (n,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/factory/status")
+async def factory_status():
+    conn = get_conn()
+    mod_counts = {r["status"]: r["n"] for r in conn.execute(
+        "SELECT status, COUNT(*) AS n FROM factory_modules GROUP BY status"
+    ).fetchall()}
+    combo_counts = {r["status"]: r["n"] for r in conn.execute(
+        "SELECT status, COUNT(*) AS n FROM factory_combos GROUP BY status"
+    ).fetchall()}
+    conn.close()
+    return {
+        "modules": mod_counts,
+        "combos": combo_counts,
+        "pipeline_running": vf.pipeline_running(),
+        "combos_running": vf.combos_running(),
+    }
+
+
+@app.get("/api/factory/manifest")
+async def factory_manifest():
+    path = vf.write_manifest()
+    return FileResponse(path, filename="manifest.csv", media_type="text/csv")
+
+
+@app.post("/api/factory/metrics")
+async def factory_import_metrics(file: UploadFile = File(...)):
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+    return vf.import_metrics_csv(text)
+
+
+@app.get("/api/factory/attribution")
+async def factory_attribution():
+    return vf.module_attribution()
 
 
 # ─── Insights ─────────────────────────────────────────────────────────────────

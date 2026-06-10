@@ -260,3 +260,43 @@ def get_global_insights(all_creators: list[dict]) -> dict:
         messages=[{"role": "user", "content": prompt}],
         max_tokens=1200,
     ))
+
+
+# ─── FACTORY: SCORE + CAPTIONS DE COMBOS ─────────────────────────────────────
+
+def score_and_caption_combos(combos: list[dict], product_name: str = "") -> list[dict]:
+    """Puntúa la coherencia hook→cuerpo→CTA de cada combo (0-100) y genera el
+    caption listo para publicar. combos: [{name, hook, hook_overlay, body, cta}].
+    Mercado: hispanos en USA — caption en español, hashtags mezclados es/en."""
+    product = _safe(product_name, 80)
+    blocks = []
+    for c in combos:
+        blocks.append(
+            f"VIDEO {c['name']}:\n"
+            f"  HOOK (texto en pantalla: \"{_safe(c.get('hook_overlay'), 100)}\"): {_safe(c.get('hook'), 400)}\n"
+            f"  CUERPO: {_safe(c.get('body'), 600)}\n"
+            f"  CTA: {_safe(c.get('cta'), 300)}"
+        )
+
+    prompt = (
+        f"Eres estratega de creativos para TikTok Shop (audiencia: hispanos en USA). "
+        f"Producto: {product or 'no especificado'}.\n\n"
+        "Estos videos se armaron combinando módulos grabados por separado "
+        "(hook + cuerpo + CTA). Evalúa cada combinación:\n\n"
+        + "\n\n".join(blocks)
+        + "\n\nPara cada video devuelve:\n"
+        "- score 0-100: ¿fluye natural la transición hook→cuerpo→CTA? ¿la promesa "
+        "del hook la cumple el cuerpo? ¿el CTA es consistente con el argumento? "
+        "Castiga repeticiones de frases entre módulos y saltos de tema.\n"
+        "- reason: 1 frase concreta (es).\n"
+        "- caption: caption listo para publicar en español (hispanos USA), 1-2 líneas "
+        "con gancho + 5 hashtags (mezcla español/inglés, incluye #tiktokshop), "
+        "menciona tocar la canasta naranja. Sin comillas ni emojis excesivos.\n\n"
+        'Devuelve SOLO JSON: [{"name":"H1-B1-C1","score":85,"reason":"...","caption":"..."}]'
+    )
+
+    result = _parse_json(_call(
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=300 * len(combos) + 200,
+    ))
+    return result if isinstance(result, list) else []

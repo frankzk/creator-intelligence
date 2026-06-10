@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+database.db
+database.db-*
+uploads/
+temp_audio/
+factory/
+render/node_modules/
+render/public/inputs/*
+!render/public/inputs/.gitkeep

@@ -83,6 +83,47 @@ def init_db():
             scraped_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS factory_modules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,                -- hook | body | cta
+            label TEXT UNIQUE NOT NULL,        -- H1, B2, C3...
+            original_name TEXT,
+            src_path TEXT,                     -- archivo subido
+            norm_path TEXT,                    -- normalizado 1080x1920@30
+            seg_path TEXT,                     -- segmento renderizado (Remotion)
+            duration REAL DEFAULT 0,
+            transcript TEXT DEFAULT '',
+            words TEXT DEFAULT '[]',           -- timestamps por palabra (JSON)
+            tags TEXT DEFAULT '[]',            -- compatibilidad de matriz (JSON)
+            overlay_text TEXT DEFAULT '',      -- texto grande en pantalla
+            status TEXT DEFAULT 'uploaded',    -- uploaded|normalizing|transcribing|transcribed|rendering|ready|error
+            error TEXT DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_combos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,         -- H1-B2-C3
+            hook_id INTEGER NOT NULL,
+            body_id INTEGER NOT NULL,
+            cta_id INTEGER NOT NULL,
+            output_path TEXT,
+            duration REAL DEFAULT 0,
+            score REAL,                        -- 0-100 coherencia (Claude)
+            score_reason TEXT DEFAULT '',
+            caption TEXT DEFAULT '',           -- caption + hashtags listos
+            views INTEGER,
+            likes INTEGER,
+            gmv REAL,
+            published_at TEXT,
+            status TEXT DEFAULT 'pending',     -- pending|ready|error
+            error TEXT DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (hook_id) REFERENCES factory_modules(id) ON DELETE CASCADE,
+            FOREIGN KEY (body_id) REFERENCES factory_modules(id) ON DELETE CASCADE,
+            FOREIGN KEY (cta_id) REFERENCES factory_modules(id) ON DELETE CASCADE
+        );
     """)
     conn.commit()
     conn.close()
