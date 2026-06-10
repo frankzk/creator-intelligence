@@ -72,7 +72,9 @@ La primera renderización descarga Chrome Headless Shell (~90 MB) automáticamen
 
 ### Flujo
 
-1. Sidebar → **Fábrica de creativos**
+1. Sidebar → **Fábrica de creativos** → crea la **campaña** del producto de la
+   semana (catálogo rotativo: cada producto ganador tiene su propia biblioteca
+   de módulos y videos; al terminar el ciclo, archívala).
 2. Sube 2+ hooks, 2+ cuerpos y 2+ CTAs (mp4/mov; cualquier resolución — se
    normalizan a 1080×1920@30 con audio a -14 LUFS). A los hooks ponles su
    **texto en pantalla**; a los CTAs, el texto de oferta (queda visible todo el módulo).

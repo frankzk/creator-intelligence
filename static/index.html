@@ -639,7 +639,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={mods:[],combos:[],queue:[],attr:[],status:{},form:{type:'hook',tags:'',overlay:''},prod:localStorage.getItem('fy_prod')||'',minD:20,maxD:45,poll:null,upBusy:false};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],status:{},form:{type:'hook',tags:'',overlay:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -647,6 +647,7 @@ function scoreCol(s){if(s==null)return['#F3F4F6','#6B7280'];if(s>=80)return['var
 
 async function showFactory(){
   S.cid=null;S.pid=null;renderSB();showView('factory');
+  await loadCamps();
   renderFyForm();
   await loadFactory();
   if(!F.poll)F.poll=setInterval(async()=>{
@@ -655,23 +656,68 @@ async function showFactory(){
   },3000);
 }
 
+async function loadCamps(){
+  F.camps=await api('GET','/api/factory/campaigns');
+  if(!F.camps.find(c=>c.id===F.camp))F.camp=F.camps[0]?.id||null;
+  if(F.camp)localStorage.setItem('fy_camp',F.camp);
+}
+
 async function loadFactory(){
+  if(!F.camp){renderFyLists();return;}
   try{
+    const q=`campaign_id=${F.camp}`;
     const[mods,combos,queue,status,attr]=await Promise.all([
-      api('GET','/api/factory/modules'),api('GET','/api/factory/combos'),
-      api('GET','/api/factory/queue?n=6'),api('GET','/api/factory/status'),
-      api('GET','/api/factory/attribution')
+      api('GET',`/api/factory/modules?${q}`),api('GET',`/api/factory/combos?${q}`),
+      api('GET',`/api/factory/queue?n=6&${q}`),api('GET','/api/factory/status'),
+      api('GET',`/api/factory/attribution?${q}`)
     ]);
     F.mods=mods;F.combos=combos;F.queue=queue;F.status=status;F.attr=attr;
     renderFyLists();
   }catch(e){$('fy-lists').innerHTML=`<p style="color:var(--r)">${esc(e.message)}</p>`;}
 }
 
+async function fyNewCamp(){
+  const name=prompt('Nombre del producto/campaña (ej. Rosemary Shampoo):');
+  if(!name||!name.trim())return;
+  try{
+    const c=await api('POST','/api/factory/campaigns',{name:name.trim()});
+    F.camp=c.id;localStorage.setItem('fy_camp',c.id);F.prod=c.name;localStorage.setItem('fy_prod',c.name);
+    await loadCamps();renderFyForm();await loadFactory();
+  }catch(e){alert(e.message);}
+}
+async function fyArchiveCamp(){
+  const c=F.camps.find(x=>x.id===F.camp);if(!c)return;
+  if(!confirm(`¿Archivar "${c.name}"? Sus módulos y videos se conservan pero salen de la vista.`))return;
+  try{
+    await api('PATCH',`/api/factory/campaigns/${c.id}`,{status:'archived'});
+    F.camp=null;await loadCamps();renderFyForm();await loadFactory();
+  }catch(e){alert(e.message);}
+}
+function fySelCamp(id){
+  F.camp=+id;localStorage.setItem('fy_camp',F.camp);
+  const c=F.camps.find(x=>x.id===F.camp);
+  if(c){F.prod=c.name;localStorage.setItem('fy_prod',c.name);}
+  renderFyForm();loadFactory();
+}
+
 function renderFyForm(){
   const f=F.form;
+  const copts=F.camps.map(c=>`<option value="${c.id}"${c.id===F.camp?' selected':''}>${esc(c.name)} (${c.module_count} mód · ${c.combo_count} videos)</option>`).join('');
+  const campBar=`<div class="fy-sec"><h4>Producto / campaña (catálogo rotativo)</h4>
+    <div class="fy-row">
+      <div class="fg" style="max-width:340px">${F.camps.length?`<select class="fi" onchange="fySelCamp(this.value)">${copts}</select>`:'<span style="font-size:13px;color:var(--t3)">Crea tu primera campaña para empezar →</span>'}</div>
+      <button class="abtn" onclick="fyNewCamp()">＋ Nueva campaña</button>
+      ${F.camp?`<button class="abtn" onclick="fyArchiveCamp()">Archivar</button>`:''}
+    </div></div>`;
+  if(!F.camp){
+    $('fy-form').innerHTML=`<div style="font-size:18px;font-weight:700;margin-bottom:4px">Fábrica de creativos</div>
+    <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (captions + texto) y arma todas las combinaciones</div>${campBar}`;
+    return;
+  }
   $('fy-form').innerHTML=`
   <div style="font-size:18px;font-weight:700;margin-bottom:4px">Fábrica de creativos</div>
   <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (captions + texto) y arma todas las combinaciones</div>
+  ${campBar}
   <div class="fy-sec">
     <h4>1 · Subir módulos</h4>
     <div class="fy-row">
@@ -693,6 +739,7 @@ function renderFyForm(){
 }
 
 async function fyUpload(){
+  if(!F.camp){alert('Crea o selecciona una campaña primero');return;}
   const inp=$('fy-file');const files=[...(inp?.files||[])];
   if(!files.length){alert('Elige al menos un video');return;}
   if(F.upBusy)return;F.upBusy=true;
@@ -700,7 +747,7 @@ async function fyUpload(){
   try{
     for(const file of files){
       const fd=new FormData();
-      fd.append('file',file);fd.append('type',F.form.type);
+      fd.append('file',file);fd.append('type',F.form.type);fd.append('campaign_id',F.camp);
       fd.append('tags',F.form.tags);fd.append('overlay_text',F.form.overlay);
       const r=await fetch('/api/factory/modules',{method:'POST',body:fd});
       if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail);}
@@ -741,6 +788,7 @@ function fyModItem(m){
 }
 
 function renderFyLists(){
+  if(!F.camp){$('fy-lists').innerHTML='';return;}
   const byType={hook:[],body:[],cta:[]};
   F.mods.forEach(m=>{(byType[m.type]||[]).push(m);});
   const cols=['hook','body','cta'].map(t=>`<div class="modcol"><h5>${TYPE_ES[t].toUpperCase()}S (${byType[t].length})</h5>${byType[t].map(fyModItem).join('')||'<div style="color:var(--t4);font-size:12px">Sin módulos</div>'}</div>`).join('');
@@ -816,12 +864,13 @@ async function fyDelMod(id,label){
   catch(e){alert(e.message);}
 }
 async function fyGen(){
-  try{await api('POST','/api/factory/combos/generate',{product_name:F.prod,min_duration:F.minD,max_duration:F.maxD});await loadFactory();}
+  if(!F.camp){alert('Selecciona una campaña');return;}
+  try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,product_name:F.prod,min_duration:F.minD,max_duration:F.maxD});await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyClear(){
-  if(!confirm('¿Borrar todas las combinaciones? (los módulos se conservan)'))return;
-  try{await api('DELETE','/api/factory/combos');await loadFactory();}
+  if(!confirm('¿Borrar las combinaciones de esta campaña? (los módulos se conservan)'))return;
+  try{await api('DELETE',`/api/factory/combos?campaign_id=${F.camp}`);await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyPub(id){

@@ -84,10 +84,18 @@ def init_db():
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS factory_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,         -- producto/campaña (catálogo rotativo)
+            status TEXT DEFAULT 'active',      -- active | archived
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS factory_modules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER,
             type TEXT NOT NULL,                -- hook | body | cta
-            label TEXT UNIQUE NOT NULL,        -- H1, B2, C3...
+            label TEXT UNIQUE NOT NULL,        -- H1, B2, C3... (únicos global, no por campaña)
             original_name TEXT,
             src_path TEXT,                     -- archivo subido
             norm_path TEXT,                    -- normalizado 1080x1920@30
@@ -104,6 +112,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS factory_combos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER,
             name TEXT UNIQUE NOT NULL,         -- H1-B2-C3
             hook_id INTEGER NOT NULL,
             body_id INTEGER NOT NULL,
@@ -125,6 +134,11 @@ def init_db():
             FOREIGN KEY (cta_id) REFERENCES factory_modules(id) ON DELETE CASCADE
         );
     """)
+    # Migración para bases creadas antes de las campañas
+    for table in ("factory_modules", "factory_combos"):
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if "campaign_id" not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN campaign_id INTEGER")
     conn.commit()
     conn.close()
 

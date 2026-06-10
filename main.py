@@ -326,10 +326,68 @@ async def upload_image(file: UploadFile = File(...)):
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 
 
+class CampaignRequest(BaseModel):
+    name: str
+
+
+@app.get("/api/factory/campaigns")
+async def factory_list_campaigns(include_archived: bool = False):
+    conn = get_conn()
+    where = "" if include_archived else "WHERE ca.status='active'"
+    rows = conn.execute(f"""
+        SELECT ca.*,
+               (SELECT COUNT(*) FROM factory_modules m WHERE m.campaign_id=ca.id) AS module_count,
+               (SELECT COUNT(*) FROM factory_combos c WHERE c.campaign_id=ca.id AND c.status='ready') AS combo_count,
+               (SELECT COUNT(*) FROM factory_combos c WHERE c.campaign_id=ca.id AND c.published_at IS NOT NULL) AS published_count
+        FROM factory_campaigns ca {where} ORDER BY ca.created_at DESC
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/factory/campaigns")
+async def factory_create_campaign(req: CampaignRequest):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "Nombre de campaña vacío")
+    conn = get_conn()
+    try:
+        conn.execute("INSERT INTO factory_campaigns (name) VALUES (?)", (name,))
+        conn.commit()
+    except Exception as exc:
+        conn.close()
+        if "UNIQUE" in str(exc):
+            raise HTTPException(400, "Ya existe una campaña con ese nombre")
+        raise
+    row = conn.execute("SELECT * FROM factory_campaigns WHERE name=?", (name,)).fetchone()
+    conn.close()
+    return dict(row)
+
+
+class CampaignPatch(BaseModel):
+    status: Optional[str] = None
+    name: Optional[str] = None
+
+
+@app.patch("/api/factory/campaigns/{campaign_id}")
+async def factory_patch_campaign(campaign_id: int, req: CampaignPatch):
+    conn = get_conn()
+    if req.status in ("active", "archived"):
+        conn.execute("UPDATE factory_campaigns SET status=? WHERE id=?",
+                     (req.status, campaign_id))
+    if req.name and req.name.strip():
+        conn.execute("UPDATE factory_campaigns SET name=? WHERE id=?",
+                     (req.name.strip(), campaign_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
 @app.post("/api/factory/modules")
 async def factory_upload_module(
     file: UploadFile = File(...),
     type: str = Form(...),
+    campaign_id: int = Form(...),
     tags: str = Form(""),
     overlay_text: str = Form(""),
 ):
@@ -341,6 +399,9 @@ async def factory_upload_module(
 
     vf.ensure_dirs()
     conn = get_conn()
+    if not conn.execute("SELECT id FROM factory_campaigns WHERE id=?", (campaign_id,)).fetchone():
+        conn.close()
+        raise HTTPException(400, "Campaña inexistente — crea una primero")
     label = vf.next_label(conn, type)
     src_path = vf.SRC_DIR / f"{label}{ext}"
     with open(src_path, "wb") as f:
@@ -348,9 +409,9 @@ async def factory_upload_module(
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     conn.execute("""
-        INSERT INTO factory_modules (type, label, original_name, src_path, tags, overlay_text)
-        VALUES (?,?,?,?,?,?)
-    """, (type, label, file.filename, str(src_path),
+        INSERT INTO factory_modules (campaign_id, type, label, original_name, src_path, tags, overlay_text)
+        VALUES (?,?,?,?,?,?,?)
+    """, (campaign_id, type, label, file.filename, str(src_path),
           json.dumps(tag_list, ensure_ascii=False), overlay_text.strip()))
     conn.commit()
     module_id = conn.execute(
@@ -363,9 +424,15 @@ async def factory_upload_module(
 
 
 @app.get("/api/factory/modules")
-async def factory_list_modules():
+async def factory_list_modules(campaign_id: Optional[int] = None):
     conn = get_conn()
-    rows = conn.execute("SELECT * FROM factory_modules ORDER BY type, id").fetchall()
+    if campaign_id is not None:
+        rows = conn.execute(
+            "SELECT * FROM factory_modules WHERE campaign_id=? ORDER BY type, id",
+            (campaign_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM factory_modules ORDER BY type, id").fetchall()
     conn.close()
     out = []
     for r in rows:
@@ -435,45 +502,52 @@ async def factory_delete_module(module_id: int):
 
 
 class GenerateCombosRequest(BaseModel):
+    campaign_id: int
     product_name: str = ""
-    min_duration: float = 20.0
-    max_duration: float = 45.0
+    min_duration: float = 25.0
+    max_duration: float = 40.0
 
 
 @app.post("/api/factory/combos/generate")
 async def factory_generate_combos(req: GenerateCombosRequest):
     conn = get_conn()
     counts = {t: conn.execute(
-        "SELECT COUNT(*) AS n FROM factory_modules WHERE type=? AND status='ready'", (t,)
+        "SELECT COUNT(*) AS n FROM factory_modules WHERE type=? AND status='ready' AND campaign_id=?",
+        (t, req.campaign_id),
     ).fetchone()["n"] for t in ("hook", "body", "cta")}
     conn.close()
     missing = [t for t, n in counts.items() if n == 0]
     if missing:
         raise HTTPException(400, f"Faltan módulos listos de tipo: {', '.join(missing)}")
-    vf.kick_combos(req.product_name, req.min_duration, req.max_duration)
+    vf.kick_combos(req.campaign_id, req.product_name, req.min_duration, req.max_duration)
     return {"status": "generating", "ready_modules": counts}
 
 
 @app.get("/api/factory/combos")
-async def factory_list_combos():
+async def factory_list_combos(campaign_id: Optional[int] = None):
     conn = get_conn()
-    rows = conn.execute("""
+    camp = "WHERE co.campaign_id=?" if campaign_id is not None else ""
+    params = (campaign_id,) if campaign_id is not None else ()
+    rows = conn.execute(f"""
         SELECT co.*, h.label AS hook_label, b.label AS body_label, c.label AS cta_label
         FROM factory_combos co
         JOIN factory_modules h ON h.id = co.hook_id
         JOIN factory_modules b ON b.id = co.body_id
         JOIN factory_modules c ON c.id = co.cta_id
+        {camp}
         ORDER BY co.score DESC NULLS LAST, co.name
-    """).fetchall()
+    """, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 @app.delete("/api/factory/combos")
-async def factory_clear_combos():
+async def factory_clear_combos(campaign_id: Optional[int] = None):
     conn = get_conn()
-    rows = conn.execute("SELECT output_path FROM factory_combos").fetchall()
-    conn.execute("DELETE FROM factory_combos")
+    camp = "WHERE campaign_id=?" if campaign_id is not None else ""
+    params = (campaign_id,) if campaign_id is not None else ()
+    rows = conn.execute(f"SELECT output_path FROM factory_combos {camp}", params).fetchall()
+    conn.execute(f"DELETE FROM factory_combos {camp}", params)
     conn.commit()
     conn.close()
     for r in rows:
@@ -498,14 +572,16 @@ async def factory_mark_published(combo_id: int):
 
 
 @app.get("/api/factory/queue")
-async def factory_queue(n: int = 6):
+async def factory_queue(n: int = 6, campaign_id: Optional[int] = None):
     """Cola del día: los mejores combos listos aún sin publicar."""
     conn = get_conn()
-    rows = conn.execute("""
+    camp = "AND campaign_id=?" if campaign_id is not None else ""
+    params = (campaign_id, n) if campaign_id is not None else (n,)
+    rows = conn.execute(f"""
         SELECT * FROM factory_combos
-        WHERE status='ready' AND published_at IS NULL
+        WHERE status='ready' AND published_at IS NULL {camp}
         ORDER BY score DESC NULLS LAST, name LIMIT ?
-    """, (n,)).fetchall()
+    """, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -545,8 +621,8 @@ async def factory_import_metrics(file: UploadFile = File(...)):
 
 
 @app.get("/api/factory/attribution")
-async def factory_attribution():
-    return vf.module_attribution()
+async def factory_attribution(campaign_id: Optional[int] = None):
+    return vf.module_attribution(campaign_id)
 
 
 # ─── Insights ─────────────────────────────────────────────────────────────────

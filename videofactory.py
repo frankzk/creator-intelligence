@@ -284,21 +284,21 @@ def _tags_compatible(*tag_lists: list[str]) -> bool:
     return all(a & b for i, a in enumerate(tagged) for b in tagged[i + 1:])
 
 
-def kick_combos(product_name: str, min_dur: float, max_dur: float):
+def kick_combos(campaign_id: int, product_name: str, min_dur: float, max_dur: float):
     global _combos_running
     with _combos_lock:
         if _combos_running:
             return
         _combos_running = True
     threading.Thread(
-        target=_combos_worker, args=(product_name, min_dur, max_dur), daemon=True
+        target=_combos_worker, args=(campaign_id, product_name, min_dur, max_dur), daemon=True
     ).start()
 
 
-def _combos_worker(product_name: str, min_dur: float, max_dur: float):
+def _combos_worker(campaign_id: int, product_name: str, min_dur: float, max_dur: float):
     global _combos_running
     try:
-        _generate_combos(product_name, min_dur, max_dur)
+        _generate_combos(campaign_id, product_name, min_dur, max_dur)
     except Exception as exc:
         print(f"[factory/combos] fatal: {exc}")
     finally:
@@ -306,11 +306,14 @@ def _combos_worker(product_name: str, min_dur: float, max_dur: float):
             _combos_running = False
 
 
-def _generate_combos(product_name: str, min_dur: float, max_dur: float):
+def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_dur: float):
     from analyzer import score_and_caption_combos
 
     conn = get_conn()
-    ready = conn.execute("SELECT * FROM factory_modules WHERE status='ready'").fetchall()
+    ready = conn.execute(
+        "SELECT * FROM factory_modules WHERE status='ready' AND campaign_id=?",
+        (campaign_id,),
+    ).fetchall()
     by_type = {"hook": [], "body": [], "cta": []}
     for m in ready:
         by_type[m["type"]].append(dict(m))
@@ -328,8 +331,8 @@ def _generate_combos(product_name: str, min_dur: float, max_dur: float):
         if not _tags_compatible(*tags):
             continue
         conn.execute(
-            "INSERT INTO factory_combos (name, hook_id, body_id, cta_id, duration) VALUES (?,?,?,?,?)",
-            (name, h["id"], b["id"], c["id"], round(total, 2)),
+            "INSERT INTO factory_combos (campaign_id, name, hook_id, body_id, cta_id, duration) VALUES (?,?,?,?,?,?)",
+            (campaign_id, name, h["id"], b["id"], c["id"], round(total, 2)),
         )
         new_combos.append({"name": name, "hook": h, "body": b, "cta": c})
     conn.commit()
@@ -385,25 +388,27 @@ def write_manifest() -> Path:
         SELECT co.name, co.duration, co.score, co.score_reason, co.caption,
                co.output_path, co.views, co.likes, co.gmv, co.published_at, co.status,
                h.label AS hook, h.overlay_text AS hook_text,
-               b.label AS body, c.label AS cta
+               b.label AS body, c.label AS cta,
+               ca.name AS campaign
         FROM factory_combos co
         JOIN factory_modules h ON h.id = co.hook_id
         JOIN factory_modules b ON b.id = co.body_id
         JOIN factory_modules c ON c.id = co.cta_id
-        ORDER BY co.score DESC NULLS LAST, co.name
+        LEFT JOIN factory_campaigns ca ON ca.id = co.campaign_id
+        ORDER BY ca.name, co.score DESC NULLS LAST, co.name
     """).fetchall()
     conn.close()
     path = OUT_DIR / "manifest.csv"
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["video", "archivo", "duracion_s", "score", "razon", "caption",
-                    "hook", "texto_hook", "cuerpo", "cta", "views", "likes", "gmv",
-                    "publicado", "estado"])
+        w.writerow(["campaña", "video", "archivo", "duracion_s", "score", "razon",
+                    "caption", "hook", "texto_hook", "cuerpo", "cta", "views", "likes",
+                    "gmv", "publicado", "estado"])
         for r in rows:
-            w.writerow([r["name"], Path(r["output_path"] or "").name, r["duration"],
-                        r["score"], r["score_reason"], r["caption"], r["hook"],
-                        r["hook_text"], r["body"], r["cta"], r["views"], r["likes"],
-                        r["gmv"], r["published_at"], r["status"]])
+            w.writerow([r["campaign"], r["name"], Path(r["output_path"] or "").name,
+                        r["duration"], r["score"], r["score_reason"], r["caption"],
+                        r["hook"], r["hook_text"], r["body"], r["cta"], r["views"],
+                        r["likes"], r["gmv"], r["published_at"], r["status"]])
     return path
 
 
@@ -477,12 +482,14 @@ def import_metrics_csv(text: str) -> dict:
     return {"matched": matched, "total_rows": len(rows) - 1, "columns": list(col_idx)}
 
 
-def module_attribution() -> list[dict]:
+def module_attribution(campaign_id: int | None = None) -> list[dict]:
     """Promedio de views/GMV por módulo entre los combos con métricas —
     responde '¿qué hook/cuerpo/CTA gana?'."""
     conn = get_conn()
     out = []
+    camp_filter = "AND m.campaign_id=?" if campaign_id is not None else ""
     for mtype, fk in (("hook", "hook_id"), ("body", "body_id"), ("cta", "cta_id")):
+        params = (mtype, campaign_id) if campaign_id is not None else (mtype,)
         rows = conn.execute(f"""
             SELECT m.id, m.label, m.overlay_text, m.transcript,
                    COUNT(co.id) AS n,
@@ -492,9 +499,9 @@ def module_attribution() -> list[dict]:
             FROM factory_modules m
             LEFT JOIN factory_combos co
                    ON co.{fk} = m.id AND (co.views IS NOT NULL OR co.gmv IS NOT NULL)
-            WHERE m.type = ?
+            WHERE m.type = ? {camp_filter}
             GROUP BY m.id ORDER BY avg_views DESC NULLS LAST
-        """, (mtype,)).fetchall()
+        """, params).fetchall()
         for r in rows:
             out.append({
                 "type": mtype, "label": r["label"],
