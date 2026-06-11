@@ -820,6 +820,7 @@ function fyStats(){
   if(busy)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>${F.status.combos_running?'Generando combinaciones...':'Procesando módulos...'}</span>`);
   if(F.status.research_running)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Transcribiendo videos ganadores...</span>`);
   if(F.status.scripts_generating)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Escribiendo guiones...</span>`);
+  if(F.status.combos_note&&!busy)chips.push(`<span class="fy-chip" style="color:#B45309;border-color:#FCD34D;background:#FFFBEB">⚠ ${esc(F.status.combos_note)}</span>`);
   return`<div class="fy-stats">${chips.join('')}</div>`;
 }
 

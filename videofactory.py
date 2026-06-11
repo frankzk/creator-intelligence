@@ -131,6 +131,20 @@ def combos_running() -> bool:
     return _combos_running
 
 
+_combos_note = ""
+
+
+def combos_note() -> str:
+    with _combos_lock:
+        return _combos_note
+
+
+def _set_combos_note(note: str):
+    global _combos_note
+    with _combos_lock:
+        _combos_note = note
+
+
 def next_label(conn, mtype: str) -> str:
     """H1, H2... por tipo, sin reusar números tras borrar."""
     prefix = TYPE_PREFIX[mtype]
@@ -320,15 +334,21 @@ def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_du
 
     existing = {r["name"] for r in conn.execute("SELECT name FROM factory_combos").fetchall()}
     new_combos = []
+    totals = []
+    skipped_exist = skipped_dur = skipped_tags = 0
     for h, b, c in cartesian(by_type["hook"], by_type["body"], by_type["cta"]):
         name = f"{h['label']}-{b['label']}-{c['label']}"
-        if name in existing:
-            continue
         total = h["duration"] + b["duration"] + c["duration"]
+        totals.append(total)
+        if name in existing:
+            skipped_exist += 1
+            continue
         if not (min_dur <= total <= max_dur):
+            skipped_dur += 1
             continue
         tags = [json.loads(m["tags"] or "[]") for m in (h, b, c)]
         if not _tags_compatible(*tags):
+            skipped_tags += 1
             continue
         conn.execute(
             "INSERT INTO factory_combos (campaign_id, name, hook_id, body_id, cta_id, duration) VALUES (?,?,?,?,?,?)",
@@ -336,6 +356,20 @@ def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_du
         )
         new_combos.append({"name": name, "hook": h, "body": b, "cta": c})
     conn.commit()
+
+    # Aviso visible en la UI cuando no salió nada — explica el porqué
+    if new_combos or not totals:
+        _set_combos_note("")
+    elif skipped_dur:
+        _set_combos_note(
+            f"0 combinaciones nuevas: el filtro es {min_dur:.0f}–{max_dur:.0f}s pero tus "
+            f"combinaciones suman {min(totals):.0f}–{max(totals):.0f}s. Sube el rango o regraba "
+            f"módulos (cuerpo ideal 15–25s)."
+        )
+    elif skipped_exist and not skipped_tags:
+        _set_combos_note("Sin combinaciones nuevas: todas las posibles ya existen.")
+    else:
+        _set_combos_note("0 combinaciones: los tags de los módulos no son compatibles entre sí.")
 
     # Concat por combo (rápido: -c copy)
     for combo in new_combos:

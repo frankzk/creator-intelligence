@@ -735,6 +735,7 @@ async def factory_status():
         "combos": combo_counts,
         "pipeline_running": vf.pipeline_running(),
         "combos_running": vf.combos_running(),
+        "combos_note": vf.combos_note(),
         "research_running": ss.research_running(),
         "scripts_generating": ss.generation_running(),
         "scripts_error": ss.generation_error(),
