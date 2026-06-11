@@ -86,9 +86,15 @@ La primera renderización descarga Chrome Headless Shell (~90 MB) automáticamen
    normalizan a 1080×1920@30 con audio a -14 LUFS). A los hooks ponles su
    **texto en pantalla**; a los CTAs, el texto de oferta (queda visible todo el módulo).
 3. Cada módulo pasa solo por: normalizar → transcribir (captions karaoke
-   palabra a palabra con faster-whisper) → renderizar segmento con Remotion.
+   palabra a palabra con faster-whisper) → **edición IA automática** (Claude
+   analiza la transcripción con tiempos y corta silencios, tomas repetidas,
+   falsos inicios y errores de grabación — puedes subir material crudo) →
+   renderizar segmento con Remotion. Cada módulo listo tiene además
+   **✂ editar IA** bajo demanda, con duración objetivo opcional.
 4. **Generar combinaciones** → producto cartesiano filtrado por duración
-   (default 20–45s) y tags de compatibilidad. Cada combo es un concat de
+   (default 25–40s) y tags de compatibilidad. Si los cuerpos no caben en la
+   duración máxima, la IA los recorta sola al presupuesto (max − hook más
+   corto − CTA más corto) y regenera las combinaciones al terminar. Cada combo es un concat de
    ffmpeg sin re-encodear: el costo de render crece con los **módulos**, no con
    las combinaciones (4 hooks + 4 cuerpos + 3 CTAs = 11 renders → 48 videos).
 5. Claude puntúa la coherencia hook→cuerpo→CTA (0–100) y genera el caption

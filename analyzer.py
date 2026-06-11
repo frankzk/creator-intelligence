@@ -320,6 +320,55 @@ Devuelve SOLO JSON:
     return result if isinstance(result, dict) else {}
 
 
+# ─── FACTORY: EDICIÓN INTELIGENTE DE MÓDULOS ─────────────────────────────────
+
+def select_keep_segments(segments: list[dict], module_type: str,
+                         target_seconds: float | None = None) -> list[int]:
+    """Decide qué frases de un módulo conservar. Elimina tomas repetidas, falsos
+    inicios y rodeos (los silencios se eliminan solos al cortar por frase).
+    segments: [{"i", "start", "end", "text"}]. Devuelve índices en orden."""
+    lines = []
+    prev_end = None
+    for s in segments:
+        gap = f" [pausa {s['start'] - prev_end:.1f}s antes]" if prev_end is not None and s["start"] - prev_end > 0.8 else ""
+        lines.append(f"{s['i']} | {s['start']:.1f}-{s['end']:.1f}s | {s['text']}{gap}")
+        prev_end = s["end"]
+    total = segments[-1]["end"] - segments[0]["start"] if segments else 0
+    tipo = {"hook": "HOOK (gancho inicial)", "body": "CUERPO (argumento central)",
+            "cta": "CTA (cierre con llamado a la acción)"}.get(module_type, module_type)
+    dur_rule = (
+        f"- DURACIÓN: el resultado debe quedar en MÁXIMO {target_seconds:.0f}s de voz "
+        f"(ideal {target_seconds * 0.75:.0f}–{target_seconds:.0f}s). Prioriza entrada directa "
+        "al argumento, beneficio principal y prueba; corta lo demás.\n"
+        if target_seconds else
+        "- NO recortes contenido por duración: solo limpia repeticiones y errores.\n"
+    )
+    prompt = (
+        f"Material crudo de un módulo {tipo} para TikTok Shop (voz en off, español). "
+        f"Dura {total:.0f}s, dividido en frases con tiempos:\n\n"
+        + "\n".join(lines)
+        + "\n\nElige las frases a CONSERVAR para el corte final. Reglas:\n"
+        "- TOMAS REPETIDAS: si una frase (o casi idéntica) aparece varias veces, conserva "
+        "SOLO la mejor versión (normalmente la más completa o la última) y descarta las demás.\n"
+        "- Corta falsos inicios, muletillas, frases cortadas a la mitad y errores de grabación.\n"
+        + dur_rule +
+        "- Mantén el orden original y que el resultado fluya natural al reproducirse seguido.\n"
+        "- El cierre/despedida no hace falta aquí: lo pone otro módulo.\n\n"
+        'Devuelve SOLO JSON: {"keep": [0, 2, 5]}'
+    )
+    result = _parse_json(_call(
+        messages=[{"role": "user", "content": prompt}],
+        system="Eres editor de video para TikTok Shop. Respondes SOLO con JSON válido.",
+        max_tokens=400,
+    ))
+    keep = result.get("keep", []) if isinstance(result, dict) else []
+    valid = {s["i"] for s in segments}
+    keep = sorted({int(i) for i in keep if int(i) in valid})
+    if not keep:
+        raise ValueError("Claude no eligió frases para conservar")
+    return keep
+
+
 # ─── FACTORY: SCORE + CAPTIONS DE COMBOS ─────────────────────────────────────
 
 def score_and_caption_combos(combos: list[dict], product_name: str = "") -> list[dict]:

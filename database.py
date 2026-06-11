@@ -167,6 +167,8 @@ def init_db():
         conn.execute("ALTER TABLE factory_modules ADD COLUMN script_id INTEGER")
     if "angle" not in mod_cols:
         conn.execute("ALTER TABLE factory_modules ADD COLUMN angle TEXT DEFAULT ''")
+    if "trim_of" not in mod_cols:
+        conn.execute("ALTER TABLE factory_modules ADD COLUMN trim_of INTEGER")
     camp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_campaigns)").fetchall()}
     if "angle_map" not in camp_cols:
         conn.execute("ALTER TABLE factory_campaigns ADD COLUMN angle_map TEXT DEFAULT '[]'")

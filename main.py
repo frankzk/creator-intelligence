@@ -652,9 +652,34 @@ async def factory_generate_combos(req: GenerateCombosRequest):
     conn.close()
     missing = [t for t, n in counts.items() if n == 0]
     if missing:
+        if vf.edits_running():
+            raise HTTPException(400, "La IA está recortando módulos — las combinaciones se generarán solas al terminar")
         raise HTTPException(400, f"Faltan módulos listos de tipo: {', '.join(missing)}")
     vf.kick_combos(req.campaign_id, req.product_name, req.min_duration, req.max_duration)
     return {"status": "generating", "ready_modules": counts}
+
+
+class EditModuleRequest(BaseModel):
+    target_seconds: Optional[float] = None
+
+
+@app.post("/api/factory/modules/{module_id}/edit")
+async def factory_edit_module(module_id: int, req: EditModuleRequest):
+    """Edición IA bajo demanda: silencios y tomas repetidas fuera; con
+    target_seconds además ajusta la duración."""
+    conn = get_conn()
+    m = conn.execute("SELECT * FROM factory_modules WHERE id=?", (module_id,)).fetchone()
+    conn.close()
+    if not m:
+        raise HTTPException(404, "Módulo no encontrado")
+    if not m["norm_path"] or m["status"] not in ("ready", "transcribed", "error"):
+        raise HTTPException(400, "El módulo aún se está procesando")
+    if not json.loads(m["words"] or "[]"):
+        raise HTTPException(400, "Sin transcripción palabra a palabra (¿clip sin voz?) — no se puede cortar por frases")
+    if req.target_seconds is not None and req.target_seconds < 3:
+        raise HTTPException(400, "Duración objetivo mínima: 3s")
+    vf.kick_edit(module_id, req.target_seconds)
+    return {"status": "editing", "label": m["label"]}
 
 
 @app.get("/api/factory/combos")
@@ -739,6 +764,8 @@ async def factory_status():
         "research_running": ss.research_running(),
         "scripts_generating": ss.generation_running(),
         "scripts_error": ss.generation_error(),
+        "edits_running": vf.edits_running(),
+        "edit_note": vf.edit_note(),
     }
 
 

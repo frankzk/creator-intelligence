@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import threading
+import time
 from itertools import product as cartesian
 from pathlib import Path
 
@@ -216,6 +217,20 @@ def _prepare_pending_modules() -> bool:
             except Exception as exc:
                 warn = f"sin captions (whisper falló): {str(exc)[:200]}"
                 print(f"[factory/{m['label']}] {warn}")
+            # Edición IA automática: fuera silencios, tomas repetidas y errores
+            # de grabación. No-fatal: si Claude no responde, sigue sin cortar.
+            if words:
+                try:
+                    changed, words2, dur2 = _smart_cut_file(
+                        m["label"], m["type"], str(norm_path), words
+                    )
+                    if changed:
+                        words, duration = words2, dur2
+                        transcript = " ".join(w["text"] for w in words)
+                        _set_module(conn, m["id"], duration=round(duration, 3))
+                        print(f"[factory/{m['label']}] edición IA: quedó en {duration:.1f}s")
+                except Exception as exc:
+                    print(f"[factory/{m['label']}] edición IA omitida: {str(exc)[:150]}")
             _set_module(conn, m["id"], status="transcribed", transcript=transcript,
                         words=json.dumps(words, ensure_ascii=False), error=warn)
         except Exception as exc:
@@ -290,6 +305,208 @@ def _render_transcribed_modules() -> bool:
     return True
 
 
+# ─── Edición inteligente (silencios, tomas repetidas, duración) ──────────────
+
+_edits_lock = threading.Lock()
+_edits_active = 0
+_edit_note = ""
+
+
+def edits_running() -> bool:
+    with _edits_lock:
+        return _edits_active > 0
+
+
+def edit_note() -> str:
+    with _edits_lock:
+        return _edit_note
+
+
+def _set_edit_note(note: str):
+    global _edit_note
+    with _edits_lock:
+        _edit_note = note
+
+
+def _words_to_segments(words: list[dict]) -> list[dict]:
+    """Agrupa palabras en frases: corta por pausa >0.6s o puntuación final."""
+    groups, cur = [], []
+    for w in words:
+        if cur and (w["start"] - cur[-1]["end"] > 0.6):
+            groups.append(cur)
+            cur = []
+        cur.append(w)
+        if w["text"][-1:] in ".!?…":
+            groups.append(cur)
+            cur = []
+    if cur:
+        groups.append(cur)
+    return [{"i": i, "start": g[0]["start"], "end": g[-1]["end"],
+             "text": " ".join(w["text"] for w in g)}
+            for i, g in enumerate(groups) if g]
+
+
+def _ranges_from_keep(segments: list[dict], keep: list[int], total_dur: float,
+                      lead: float = 0.15, tail: float = 0.35,
+                      join_gap: float = 0.45) -> list[list[float]]:
+    """Frases conservadas → rangos de corte. Vecinas casi contiguas se unen;
+    los huecos grandes entre conservadas se eliminan (fuera silencios)."""
+    ranges: list[list[float]] = []
+    for i in keep:
+        s = segments[i]
+        a = max(0.0, s["start"] - lead)
+        b = min(total_dur, s["end"] + tail)
+        if ranges and a - ranges[-1][1] <= join_gap:
+            ranges[-1][1] = max(ranges[-1][1], b)
+        else:
+            ranges.append([a, b])
+    return [r for r in ranges if r[1] - r[0] > 0.15]
+
+
+def _enforce_target(segments: list[dict], keep: list[int], target: float) -> list[int]:
+    """Garantiza que la voz conservada quepa en target: suelta frases del final."""
+    def dur(ks):
+        return sum(segments[i]["end"] - segments[i]["start"] for i in ks)
+    keep = list(keep)
+    while len(keep) > 1 and dur(keep) > target:
+        keep.pop()
+    return keep
+
+
+def _extract_ranges(src: str | Path, ranges: list[list[float]], dst: str | Path):
+    """Corta y une los rangos en una pasada de ffmpeg (re-encode preciso)."""
+    parts, concat_in = [], ""
+    for i, (a, b) in enumerate(ranges):
+        parts.append(
+            f"[0:v]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS[v{i}];"
+            f"[0:a]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS[a{i}]"
+        )
+        concat_in += f"[v{i}][a{i}]"
+    fc = ";".join(parts) + f";{concat_in}concat=n={len(ranges)}:v=1:a=1[v][a]"
+    _run([
+        _ffmpeg(), "-y", "-i", str(src), "-filter_complex", fc,
+        "-map", "[v]", "-map", "[a]", "-r", "30",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+        str(dst),
+    ])
+
+
+def _remap_words(words: list[dict], ranges: list[list[float]]) -> list[dict]:
+    """Reubica los timestamps de palabras en la línea de tiempo ya cortada."""
+    out, offset = [], 0.0
+    for a, b in ranges:
+        for w in words:
+            if w["start"] >= a - 0.05 and w["end"] <= b + 0.05:
+                start = max(0.0, w["start"] - a) + offset
+                out.append({"text": w["text"], "start": round(start, 3),
+                            "end": round(max(0.0, w["end"] - a) + offset, 3)})
+        offset += b - a
+    return out
+
+
+def _smart_cut_file(label: str, mtype: str, norm_path: str, words: list[dict],
+                    target_seconds: float | None = None):
+    """Edita el archivo normalizado en sitio con cortes elegidos por Claude.
+    Devuelve (changed, new_words, new_duration). Lanza ValueError si no hay voz."""
+    from analyzer import select_keep_segments
+
+    if not words:
+        raise ValueError("sin transcripción palabra a palabra (¿clip sin voz?)")
+    segments = _words_to_segments(words)
+    if not segments:
+        raise ValueError("sin frases detectadas")
+
+    keep = select_keep_segments(segments, mtype, target_seconds)
+    if target_seconds:
+        keep = _enforce_target(segments, keep, target_seconds)
+
+    total = media_duration(norm_path)
+    ranges = _ranges_from_keep(segments, keep, total)
+    if not ranges:
+        raise ValueError("el corte quedaría vacío")
+    new_dur = sum(b - a for a, b in ranges)
+    # Nada que ganar: conservó todo y el ahorro es marginal
+    if not target_seconds and len(keep) == len(segments) and total - new_dur < 0.8:
+        return False, words, total
+
+    cut_path = Path(norm_path).with_suffix(".cut.mp4")
+    _extract_ranges(norm_path, ranges, cut_path)
+    shutil.move(str(cut_path), norm_path)
+    new_words = _remap_words(words, ranges)
+    return True, new_words, media_duration(norm_path)
+
+
+def kick_edit(module_id: int, target_seconds: float | None = None,
+              regen: dict | None = None):
+    """Edición manual/automática de un módulo. regen = params para regenerar
+    combos al terminar (auto-recorte desde Generar combinaciones)."""
+    global _edits_active
+    with _edits_lock:
+        _edits_active += 1
+    threading.Thread(target=_edit_worker, args=(module_id, target_seconds, regen),
+                     daemon=True).start()
+
+
+def _edit_worker(module_id: int, target: float | None, regen: dict | None):
+    global _edits_active
+    label = f"módulo {module_id}"
+    try:
+        conn = get_conn()
+        m = conn.execute("SELECT * FROM factory_modules WHERE id=?", (module_id,)).fetchone()
+        if not m or not m["norm_path"]:
+            conn.close()
+            raise ValueError("módulo no encontrado o aún sin procesar")
+        label = m["label"]
+        words = json.loads(m["words"] or "[]")
+        changed, new_words, new_dur = _smart_cut_file(
+            m["label"], m["type"], m["norm_path"], words, target
+        )
+        if not changed:
+            conn.close()
+            _set_edit_note(f"{label}: nada que recortar (sin repeticiones ni silencios largos)")
+            return
+        # Los combos que usaban este módulo quedan obsoletos
+        for r in conn.execute(
+            "SELECT output_path FROM factory_combos WHERE hook_id=? OR body_id=? OR cta_id=?",
+            (module_id, module_id, module_id),
+        ).fetchall():
+            if r["output_path"]:
+                Path(r["output_path"]).unlink(missing_ok=True)
+        conn.execute(
+            "DELETE FROM factory_combos WHERE hook_id=? OR body_id=? OR cta_id=?",
+            (module_id, module_id, module_id),
+        )
+        transcript = " ".join(w["text"] for w in new_words)
+        _set_module(conn, module_id, status="transcribed", duration=round(new_dur, 3),
+                    words=json.dumps(new_words, ensure_ascii=False),
+                    transcript=transcript, error="")
+        conn.commit()
+        conn.close()
+        _set_edit_note("")
+        kick_pipeline()
+
+        if regen:
+            # Esperar el re-render del módulo y regenerar combos solos
+            for _ in range(600):
+                time.sleep(3)
+                conn = get_conn()
+                st = conn.execute("SELECT status FROM factory_modules WHERE id=?",
+                                  (module_id,)).fetchone()
+                conn.close()
+                if not st or st["status"] in ("ready", "error"):
+                    break
+            if st and st["status"] == "ready":
+                kick_combos(regen["campaign_id"], regen.get("product_name", ""),
+                            regen["min_dur"], regen["max_dur"])
+    except Exception as exc:
+        print(f"[factory/edit] {label}: {exc}")
+        _set_edit_note(f"{label}: {str(exc)[:200]}")
+    finally:
+        with _edits_lock:
+            _edits_active -= 1
+
+
 # ─── Matriz de combinaciones ──────────────────────────────────────────────────
 
 def _tags_compatible(*tag_lists: list[str]) -> bool:
@@ -361,11 +578,30 @@ def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_du
     if new_combos or not totals:
         _set_combos_note("")
     elif skipped_dur:
-        _set_combos_note(
-            f"0 combinaciones nuevas: el filtro es {min_dur:.0f}–{max_dur:.0f}s pero tus "
-            f"combinaciones suman {min(totals):.0f}–{max(totals):.0f}s. Sube el rango o regraba "
-            f"módulos (cuerpo ideal 15–25s)."
-        )
+        # Auto-recorte: si el problema son cuerpos largos, la IA los corta sola
+        # al presupuesto (max - hook más corto - CTA más corto) y regenera.
+        hooks_d = [h["duration"] for h in by_type["hook"]]
+        ctas_d = [c["duration"] for c in by_type["cta"]]
+        budget = max_dur - min(hooks_d) - min(ctas_d) - 0.3
+        target = max(4.0, budget - 1.5)  # margen por los respiros entre cortes
+        long_bodies = [b for b in by_type["body"] if b["duration"] > budget]
+        if budget >= 5 and long_bodies:
+            for b in long_bodies:
+                kick_edit(b["id"], target_seconds=target, regen={
+                    "campaign_id": campaign_id, "product_name": product_name,
+                    "min_dur": min_dur, "max_dur": max_dur,
+                })
+            _set_combos_note(
+                f"Cuerpos muy largos para videos de {max_dur:.0f}s: la IA está recortando "
+                f"{len(long_bodies)} cuerpo(s) a ~{target:.0f}s (fuera silencios, tomas "
+                f"repetidas y relleno). Las combinaciones se generarán solas al terminar."
+            )
+        else:
+            _set_combos_note(
+                f"0 combinaciones nuevas: el filtro es {min_dur:.0f}–{max_dur:.0f}s pero tus "
+                f"combinaciones suman {min(totals):.0f}–{max(totals):.0f}s. Ajusta el rango o "
+                f"revisa la duración de hooks y CTAs."
+            )
     elif skipped_exist and not skipped_tags:
         _set_combos_note("Sin combinaciones nuevas: todas las posibles ya existen.")
     else:

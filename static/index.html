@@ -820,6 +820,8 @@ function fyStats(){
   if(busy)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>${F.status.combos_running?'Generando combinaciones...':'Procesando módulos...'}</span>`);
   if(F.status.research_running)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Transcribiendo videos ganadores...</span>`);
   if(F.status.scripts_generating)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Escribiendo guiones...</span>`);
+  if(F.status.edits_running)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>✂ La IA está editando módulos (silencios, repeticiones, duración)...</span>`);
+  if(F.status.edit_note)chips.push(`<span class="fy-chip" style="color:#B45309;border-color:#FCD34D;background:#FFFBEB">✂ ${esc(F.status.edit_note)}</span>`);
   if(F.status.combos_note&&!busy)chips.push(`<span class="fy-chip" style="color:#B45309;border-color:#FCD34D;background:#FFFBEB">⚠ ${esc(F.status.combos_note)}</span>`);
   return`<div class="fy-stats">${chips.join('')}</div>`;
 }
@@ -833,6 +835,7 @@ function fyModItem(m){
     <div class="meta"><span class="dot ${dc}"></span>${MOD_ST[m.status]||m.status}
       · ${(m.duration||0).toFixed(1)}s${prev}
       · <span class="lnk" onclick="fyEditOv(${m.id})">texto</span>
+      ${m.status==='ready'?` · <span class="lnk" onclick="fyEditIA(${m.id},'${esc(m.label)}')">✂ editar IA</span>`:''}
       · <span class="lnk" style="color:var(--r)" onclick="fyDelMod(${m.id},'${esc(m.label)}')">borrar</span></div>
     ${m.overlay_text?`<div class="ov">“${esc(m.overlay_text)}”</div>`:''}
     ${m.tags&&m.tags.length?`<div class="meta">tags: ${esc(m.tags.join(', '))}</div>`:''}
@@ -946,6 +949,15 @@ function renderFyLists(){
     <div style="font-size:11px;color:var(--t4);margin-top:8px">El sistema busca el nombre del combo (H1-B2-C3) en cada fila y cruza views/likes/GMV. Deja el nombre del archivo en el título o caption al publicar para poder cruzarlo.</div>
   </div>
   ${attr}`;
+}
+
+async function fyEditIA(id,label){
+  const t=prompt(`Editar ${label} con IA — quita silencios, tomas repetidas y errores.\n\nDuración objetivo en segundos (déjalo vacío para solo limpiar):`,'');
+  if(t===null)return;
+  const target=t.trim()?parseFloat(t):null;
+  if(t.trim()&&(!target||target<3)){alert('Duración inválida');return;}
+  try{await api('POST',`/api/factory/modules/${id}/edit`,{target_seconds:target});await loadFactory();}
+  catch(e){alert(e.message);}
 }
 
 async function fyEditOv(id){
