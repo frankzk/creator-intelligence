@@ -766,6 +766,7 @@ async def factory_status():
         "scripts_error": ss.generation_error(),
         "edits_running": vf.edits_running(),
         "edit_note": vf.edit_note(),
+        "api_key_present": bool(os.getenv("ANTHROPIC_API_KEY")),
     }
 
 

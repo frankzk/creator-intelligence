@@ -502,6 +502,9 @@ def _edit_worker(module_id: int, target: float | None, regen: dict | None):
     except Exception as exc:
         print(f"[factory/edit] {label}: {exc}")
         _set_edit_note(f"{label}: {str(exc)[:200]}")
+        if regen:
+            _set_combos_note("El recorte automático falló — corrige el error de arriba "
+                             "y vuelve a presionar Generar combinaciones.")
     finally:
         with _edits_lock:
             _edits_active -= 1

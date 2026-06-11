@@ -9,11 +9,20 @@ import httpx
 # 10-min read timeout so long generations never hit an idle cutoff.
 _timeout = httpx.Timeout(timeout=600.0, connect=10.0, read=600.0, write=30.0, pool=10.0)
 
-client = anthropic.Anthropic(
-    api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-    timeout=_timeout,
-    max_retries=2,
-)
+_client: anthropic.Anthropic | None = None
+
+
+def _get_client() -> anthropic.Anthropic:
+    global _client
+    if _client is None:
+        key = os.getenv("ANTHROPIC_API_KEY", "")
+        if not key:
+            raise RuntimeError(
+                "Falta ANTHROPIC_API_KEY en el archivo .env de la carpeta del "
+                "proyecto. Agrégala (ANTHROPIC_API_KEY=sk-ant-...) y reinicia la app."
+            )
+        _client = anthropic.Anthropic(api_key=key, timeout=_timeout, max_retries=2)
+    return _client
 
 _SONNET = "claude-sonnet-4-20250514"
 
@@ -39,7 +48,7 @@ def _call(messages: list, system: str = "", max_tokens: int = 1000) -> str:
     kwargs: dict = dict(model=_SONNET, max_tokens=max_tokens, messages=messages)
     if system:
         kwargs["system"] = system
-    resp = client.messages.create(**kwargs)
+    resp = _get_client().messages.create(**kwargs)
     return resp.content[0].text
 
 
