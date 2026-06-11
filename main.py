@@ -26,6 +26,7 @@ from analyzer import (
 )
 from kalodata import scrape_kalodata_sync
 import videofactory as vf
+import scriptstudio as ss
 
 # ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -383,6 +384,125 @@ async def factory_patch_campaign(campaign_id: int, req: CampaignPatch):
     return {"status": "ok"}
 
 
+# ─── Estudio de guiones ───────────────────────────────────────────────────────
+
+class ResearchRequest(BaseModel):
+    campaign_id: int
+    urls: list[str] = []
+    transcript: str = ""
+    notes: str = ""
+
+
+@app.post("/api/factory/research")
+async def factory_add_research(req: ResearchRequest):
+    conn = get_conn()
+    if not conn.execute("SELECT id FROM factory_campaigns WHERE id=?",
+                        (req.campaign_id,)).fetchone():
+        conn.close()
+        raise HTTPException(400, "Campaña inexistente")
+    added = 0
+    for url in req.urls:
+        url = url.strip()
+        if not url or not url.lower().startswith("http"):
+            continue
+        dup = conn.execute(
+            "SELECT id FROM factory_research WHERE campaign_id=? AND url=?",
+            (req.campaign_id, url)).fetchone()
+        if dup:
+            continue
+        conn.execute(
+            "INSERT INTO factory_research (campaign_id, url, notes) VALUES (?,?,?)",
+            (req.campaign_id, url, req.notes.strip()))
+        added += 1
+    if req.transcript.strip():
+        conn.execute("""
+            INSERT INTO factory_research (campaign_id, transcript, notes, status)
+            VALUES (?,?,?, 'done')
+        """, (req.campaign_id, req.transcript.strip(), req.notes.strip()))
+        added += 1
+    conn.commit()
+    pending = conn.execute(
+        "SELECT COUNT(*) AS n FROM factory_research WHERE status='pending'"
+    ).fetchone()["n"]
+    conn.close()
+    if not added:
+        raise HTTPException(400, "No se agregó nada (¿links repetidos o vacíos?)")
+    if pending:
+        ss.kick_research()
+    return {"added": added}
+
+
+@app.get("/api/factory/research")
+async def factory_list_research(campaign_id: int):
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id, url, notes, status, error, length(transcript) AS transcript_len "
+        "FROM factory_research WHERE campaign_id=? ORDER BY id", (campaign_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.delete("/api/factory/research/{research_id}")
+async def factory_delete_research(research_id: int):
+    conn = get_conn()
+    conn.execute("DELETE FROM factory_research WHERE id=?", (research_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "deleted"}
+
+
+class ScriptsGenRequest(BaseModel):
+    campaign_id: int
+    product_name: str = ""
+
+
+@app.post("/api/factory/scripts/generate")
+async def factory_generate_scripts(req: ScriptsGenRequest):
+    conn = get_conn()
+    n = conn.execute(
+        "SELECT COUNT(*) AS n FROM factory_research WHERE campaign_id=? AND status='done'",
+        (req.campaign_id,)).fetchone()["n"]
+    conn.close()
+    if not n:
+        raise HTTPException(400, "Primero transcribe al menos un video ganador (o pega una transcripción)")
+    ss.kick_generation(req.campaign_id, req.product_name)
+    return {"status": "generating", "sources": n}
+
+
+@app.get("/api/factory/scripts")
+async def factory_list_scripts(campaign_id: int):
+    conn = get_conn()
+    camp = conn.execute("SELECT angle_map FROM factory_campaigns WHERE id=?",
+                        (campaign_id,)).fetchone()
+    rows = conn.execute(
+        "SELECT * FROM factory_scripts WHERE campaign_id=? ORDER BY "
+        "CASE type WHEN 'hook' THEN 0 WHEN 'body' THEN 1 ELSE 2 END, id",
+        (campaign_id,)).fetchall()
+    conn.close()
+    try:
+        angle_map = json.loads((camp["angle_map"] if camp else "") or "[]")
+    except Exception:
+        angle_map = []
+    return {"angle_map": angle_map, "scripts": [dict(r) for r in rows]}
+
+
+class ScriptPatch(BaseModel):
+    status: str  # pending | recorded | discarded
+
+
+@app.patch("/api/factory/scripts/{script_id}")
+async def factory_patch_script(script_id: int, req: ScriptPatch):
+    if req.status not in ("pending", "recorded", "discarded"):
+        raise HTTPException(400, "status inválido")
+    conn = get_conn()
+    conn.execute("UPDATE factory_scripts SET status=? WHERE id=?",
+                 (req.status, script_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
 @app.post("/api/factory/modules")
 async def factory_upload_module(
     file: UploadFile = File(...),
@@ -390,6 +510,7 @@ async def factory_upload_module(
     campaign_id: int = Form(...),
     tags: str = Form(""),
     overlay_text: str = Form(""),
+    script_id: str = Form(""),
 ):
     if type not in vf.TYPE_PREFIX:
         raise HTTPException(400, "type debe ser hook, body o cta")
@@ -408,11 +529,24 @@ async def factory_upload_module(
         f.write(await file.read())
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    overlay = overlay_text.strip()
+    angle = ""
+    sid = None
+    if script_id.strip():
+        srow = conn.execute("SELECT * FROM factory_scripts WHERE id=?",
+                            (int(script_id),)).fetchone()
+        if srow:
+            sid = srow["id"]
+            angle = srow["angle"] or ""
+            if not overlay:
+                overlay = srow["overlay_text"] or ""
+            conn.execute("UPDATE factory_scripts SET status='recorded' WHERE id=?", (sid,))
     conn.execute("""
-        INSERT INTO factory_modules (campaign_id, type, label, original_name, src_path, tags, overlay_text)
-        VALUES (?,?,?,?,?,?,?)
+        INSERT INTO factory_modules
+            (campaign_id, type, label, original_name, src_path, tags, overlay_text, script_id, angle)
+        VALUES (?,?,?,?,?,?,?,?,?)
     """, (campaign_id, type, label, file.filename, str(src_path),
-          json.dumps(tag_list, ensure_ascii=False), overlay_text.strip()))
+          json.dumps(tag_list, ensure_ascii=False), overlay, sid, angle))
     conn.commit()
     module_id = conn.execute(
         "SELECT id FROM factory_modules WHERE label=?", (label,)
@@ -601,6 +735,9 @@ async def factory_status():
         "combos": combo_counts,
         "pipeline_running": vf.pipeline_running(),
         "combos_running": vf.combos_running(),
+        "research_running": ss.research_running(),
+        "scripts_generating": ss.generation_running(),
+        "scripts_error": ss.generation_error(),
     }
 
 

@@ -262,6 +262,64 @@ def get_global_insights(all_creators: list[dict]) -> dict:
     ))
 
 
+# ─── FACTORY: ESTUDIO DE GUIONES ─────────────────────────────────────────────
+
+def build_module_scripts(product_name: str, sources: list[dict]) -> dict:
+    """Mapa de ángulos + guiones modulares a partir de transcripciones de videos
+    que YA venden el producto. sources: [{transcript, notes}].
+    Devuelve {"angle_map": [...], "scripts": [...]} con 6 hooks, 4 cuerpos, 3 CTAs."""
+    blocks = []
+    for i, s in enumerate(sources[:12], 1):
+        note = str(s.get("notes") or "").strip()
+        head = f"VIDEO {i}" + (f" ({note[:100]})" if note else "")
+        blocks.append(f"{head}:\n{_safe(s.get('transcript'), 900)}")
+
+    prompt = (
+        f"Producto: {_safe(product_name, 80)}. Audiencia: hispanos en USA "
+        "(TikTok Shop, video en español, voz en off sobre b-roll).\n\n"
+        "Transcripciones de videos que YA están vendiendo este producto:\n\n"
+        + "\n---\n".join(blocks)
+        + """
+
+TAREA 1 — Mapa de ángulos: identifica los 4-6 ángulos de venta que estos videos
+explotan (ej. miedo al problema, resultado visible, precio/oferta, testimonio,
+comparación, curiosidad científica). Para cada uno: qué evidencia hay en los
+videos y la fórmula de hook que usan.
+
+TAREA 2 — Guiones modulares para grabar como VOZ EN OFF. Exactamente:
+- 6 hooks (3-6s, 10-16 palabras), cada uno con un ángulo/fórmula DIFERENTE
+- 4 cuerpos (15-25s, 40-65 palabras), desarrollan el argumento con beneficios/prueba
+- 3 CTAs (4-8s, 12-22 palabras), siempre mencionan tocar la canasta naranja
+
+REGLAS DE MODULARIDAD (crítico — los módulos se combinan al azar):
+- Cada módulo es autocontenido: PROHIBIDO referirse a otro módulo ("como te decía",
+  "además de lo anterior"). El cuerpo no saluda ni abre tema: entra directo al argumento.
+- Cualquier hook debe poder pegarse con cualquier cuerpo y cualquier CTA sin sonar raro.
+- text: lenguaje hablado natural, sin emojis ni acotaciones de cámara.
+- overlay_text: texto en pantalla, máx 7 palabras, estilo TikTok (puede llevar 1 emoji);
+  obligatorio en hooks, opcional en cuerpos/CTAs (déjalo "" si no aporta).
+- est_seconds: palabras ÷ 2.6, redondeado a 1 decimal.
+
+Devuelve SOLO JSON:
+{
+ "angle_map": [{"angle":"...","evidence":"...","hook_formula":"plantilla con [X]"}],
+ "scripts": [
+   {"type":"hook","angle":"...","text":"...","overlay_text":"...","est_seconds":4.5},
+   {"type":"body","angle":"...","text":"...","overlay_text":"","est_seconds":20.0},
+   {"type":"cta","angle":"...","text":"...","overlay_text":"...","est_seconds":6.0}
+ ]
+}"""
+    )
+
+    result = _parse_json(_call(
+        messages=[{"role": "user", "content": prompt}],
+        system="Eres estratega de creativos TikTok Shop para el mercado hispano de USA. "
+               "Respondes SOLO con JSON válido.",
+        max_tokens=6000,
+    ))
+    return result if isinstance(result, dict) else {}
+
+
 # ─── FACTORY: SCORE + CAPTIONS DE COMBOS ─────────────────────────────────────
 
 def score_and_caption_combos(combos: list[dict], product_name: str = "") -> list[dict]:

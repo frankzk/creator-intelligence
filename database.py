@@ -133,12 +133,43 @@ def init_db():
             FOREIGN KEY (body_id) REFERENCES factory_modules(id) ON DELETE CASCADE,
             FOREIGN KEY (cta_id) REFERENCES factory_modules(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS factory_research (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER NOT NULL,
+            url TEXT DEFAULT '',               -- link TikTok del video ganador
+            transcript TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending',     -- pending|downloading|transcribing|done|error
+            error TEXT DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_scripts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER NOT NULL,
+            type TEXT NOT NULL,                -- hook | body | cta
+            angle TEXT DEFAULT '',             -- ángulo de venta (del mapa)
+            text TEXT NOT NULL,                -- guion de voz en off
+            overlay_text TEXT DEFAULT '',      -- texto en pantalla sugerido
+            est_seconds REAL DEFAULT 0,
+            status TEXT DEFAULT 'pending',     -- pending|recorded|discarded
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     # Migración para bases creadas antes de las campañas
     for table in ("factory_modules", "factory_combos"):
         cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         if "campaign_id" not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN campaign_id INTEGER")
+    # Migración para el estudio de guiones
+    mod_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_modules)").fetchall()}
+    if "script_id" not in mod_cols:
+        conn.execute("ALTER TABLE factory_modules ADD COLUMN script_id INTEGER")
+    if "angle" not in mod_cols:
+        conn.execute("ALTER TABLE factory_modules ADD COLUMN angle TEXT DEFAULT ''")
+    camp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_campaigns)").fetchall()}
+    if "angle_map" not in camp_cols:
+        conn.execute("ALTER TABLE factory_campaigns ADD COLUMN angle_map TEXT DEFAULT '[]'")
     conn.commit()
     conn.close()
 
