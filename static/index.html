@@ -199,6 +199,20 @@ tr:hover td{background:#FAFAFA}
 .fy-cnt{padding:20px 24px;flex:1;overflow-y:auto}
 .fy-sec{background:#fff;border:1px solid var(--bd);border-radius:var(--rad);padding:16px;margin-bottom:16px}
 .fy-sec h4{font-size:13px;font-weight:600;color:var(--t3);margin-bottom:12px}
+.fy-step{background:#fff;border:1px solid var(--bd);border-radius:var(--rad);margin-bottom:10px;overflow:hidden}
+.fy-step-h{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none}
+.fy-step-h:hover{background:#fafafa}
+.fy-step-n{width:24px;height:24px;border-radius:50%;background:#cbd5e1;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+.fy-step.open .fy-step-n{background:#7C3AED}
+.fy-step-t{font-weight:600;font-size:14px}
+.fy-sum{margin-left:auto;font-size:12px;color:var(--t3);text-align:right}
+.fy-chev{color:var(--t4);transition:transform .15s;flex:none}
+.fy-step.open .fy-chev{transform:rotate(180deg)}
+.fy-step-b{display:none;padding:14px 16px 16px;border-top:1px solid var(--bd)}
+.fy-step.open .fy-step-b{display:block}
+.fy-hint{font-size:11px;color:var(--t4);margin-top:8px;line-height:1.55}
+.fy-nextb{background:#F5F3FF;border:1px solid #DDD6FE;color:#5B21B6;border-radius:var(--rad);padding:11px 14px;font-size:13px;margin-bottom:12px;cursor:pointer}
+.fy-nextb:hover{background:#EDE9FE}
 .fy-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .fy-row .fg{margin-bottom:0;flex:1;min-width:140px}
 .modgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
@@ -639,7 +653,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -696,10 +710,20 @@ async function fyArchiveCamp(){
   }catch(e){alert(e.message);}
 }
 function fySelCamp(id){
-  F.camp=+id;localStorage.setItem('fy_camp',F.camp);
+  F.camp=+id;localStorage.setItem('fy_camp',F.camp);F.manual=null;
   const c=F.camps.find(x=>x.id===F.camp);
   if(c){F.prod=c.name;localStorage.setItem('fy_prod',c.name);}
   renderFyForm();loadFactory();
+}
+
+function fyStepShell(n,title,body){
+  return`<div class="fy-step" id="fy-st-${n}">
+    <div class="fy-step-h" onclick="fyTog(${n})">
+      <span class="fy-step-n">${n}</span><span class="fy-step-t">${title}</span>
+      <span class="fy-sum" id="fy-sum-${n}"></span><span class="fy-chev">▾</span>
+    </div>
+    <div class="fy-step-b">${body}</div>
+  </div>`;
 }
 
 function renderFyForm(){
@@ -713,50 +737,98 @@ function renderFyForm(){
     </div></div>`;
   if(!F.camp){
     $('fy-form').innerHTML=`<div style="font-size:18px;font-weight:700;margin-bottom:4px">Fábrica de creativos</div>
-    <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (cortes IA + texto en pantalla) y arma todas las combinaciones</div>${campBar}`;
+    <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Tu ciclo semanal en 5 pasos: guiones → grabar → generar → publicar → medir</div>${campBar}`;
     return;
   }
-  $('fy-form').innerHTML=`
-  <div style="font-size:18px;font-weight:700;margin-bottom:4px">Fábrica de creativos</div>
-  <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (cortes IA + texto en pantalla) y arma todas las combinaciones</div>
-  ${campBar}
-  <div class="fy-sec">
-    <h4>1 · Estudio de guiones — copia lo que ya vende</h4>
+
+  const paso1=`
     <div class="fy-row">
       <div class="fg"><label class="fl">Links de videos que están vendiendo el producto (uno por línea)</label>
         <textarea class="fi" id="fy-rl" rows="2" style="resize:vertical;font-family:inherit" placeholder="https://www.tiktok.com/@creador/video/123..."></textarea></div>
       <button class="abtn" style="align-self:flex-end" onclick="fyAddResearch()">Transcribir</button>
     </div>
     <div class="fy-row" style="margin-top:10px">
-      <div class="fg"><label class="fl">Buyer personas (opcional, uno por línea — vacío = la IA los propone del análisis)</label>
+      <div class="fg"><label class="fl">Buyer personas (opcional, uno por línea — vacío = la IA los propone)</label>
         <textarea class="fi" id="fy-personas" rows="2" style="resize:vertical;font-family:inherit" placeholder="ej. mamá postparto con caída de pelo&#10;mujer 40+ con pelo debilitado"></textarea></div>
       <button class="gbtn" style="width:auto;margin:0 0 1px;padding:9px 18px;align-self:flex-end" id="fy-gensc" onclick="fyGenScripts()">✨ Generar guiones</button>
     </div>
-    <div style="font-size:11px;color:var(--t4);margin-top:8px">Pega 5–10 videos ganadores (de tu análisis de Kalodata). El sistema los transcribe, define los <b>buyer personas</b> (o usa los tuyos) y escribe guiones <b>por persona</b> (3 hooks · 2 cuerpos · 2 CTAs cada una) listos para voz en off. La matriz solo combina piezas de la misma persona — nunca le hablas a dos audiencias en un mismo video; los CTAs genéricos combinan con todas. Si un link falla, pega la transcripción a mano abajo.</div>
+    <div class="fy-hint">Pega 5–10 videos ganadores (de tu análisis de Kalodata) → la IA define los <b>buyer personas</b> y escribe guiones por persona, listos para leer como voz en off. En un video nunca se mezclan audiencias.</div>
     <div id="fy-research" style="margin-top:10px"></div>
     <div id="fy-angles"></div>
-    <div id="fy-scripts"></div>
-  </div>
-  <div class="fy-sec">
-    <h4>2 · Subir módulos grabados</h4>
+    <div id="fy-scripts"></div>`;
+
+  const paso2=`
     <div class="fy-row">
       <div class="fg" style="max-width:130px"><label class="fl">Tipo</label>
         <select class="fi" id="fy-type" onchange="F.form.type=this.value;F.form.script='';renderFyLists()">
           <option value="hook">Hook</option><option value="body">Cuerpo</option><option value="cta">CTA</option>
         </select></div>
-      <div class="fg" style="max-width:230px"><label class="fl">Guion (opcional)</label>
+      <div class="fg" style="max-width:240px"><label class="fl">Guion que grabaste</label>
         <select class="fi" id="fy-script" onchange="F.form.script=this.value"><option value="">— sin guion —</option></select></div>
-      <div class="fg"><label class="fl">Texto en pantalla (hooks/CTA)</label>
+      <div class="fg"><label class="fl">Texto en pantalla</label>
         <input class="fi" id="fy-ov" placeholder="vacío = usa el del guion" value="${esc(f.overlay)}" oninput="F.form.overlay=this.value"></div>
-      <div class="fg" style="max-width:150px"><label class="fl">Tags (opcional)</label>
+      <div class="fg" style="max-width:140px"><label class="fl">Tags (opcional)</label>
         <input class="fi" id="fy-tags" placeholder="ej. shampoo" value="${esc(f.tags)}" oninput="F.form.tags=this.value"></div>
       <div class="fg" style="max-width:220px"><label class="fl">Video(s)</label>
         <input class="fi" type="file" id="fy-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv" multiple></div>
       <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" id="fy-up" onclick="fyUpload()">Subir</button>
     </div>
-    <div style="font-size:11px;color:var(--t4);margin-top:8px">El tipo se aplica a todos los archivos elegidos. Si eliges el guion que grabaste, el módulo hereda su ángulo y su texto en pantalla. Cada clip se normaliza a 1080×1920@30, se transcribe (para la edición IA y los scores) y se renderiza con tu texto en pantalla. Los subtítulos los activas en la app de TikTok al publicar.</div>
-  </div>`;
+    <div class="fy-hint">Graba cada guion como voz en off y súbelo eligiendo su guion: el módulo hereda persona, ángulo y texto en pantalla, y la IA le quita silencios, tomas repetidas y errores (puedes subir material crudo). Subtítulos: los activas en la app de TikTok al publicar.</div>
+    <div id="fy-mods-box" style="margin-top:12px"></div>`;
+
+  const paso3=`
+    <div class="fy-row">
+      <div class="fg"><label class="fl">Producto</label><input class="fi" value="${esc(F.prod)}" oninput="F.prod=this.value;localStorage.setItem('fy_prod',this.value)" placeholder="ej. Rosemary Shampoo"></div>
+      <div class="fg" style="max-width:110px"><label class="fl">Dur. mín (s)</label><input class="fi" type="number" value="${F.minD}" oninput="F.minD=+this.value"></div>
+      <div class="fg" style="max-width:110px"><label class="fl">Dur. máx (s)</label><input class="fi" type="number" value="${F.maxD}" oninput="F.maxD=+this.value"></div>
+      <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" onclick="fyGen()">⚡ Generar combinaciones</button>
+    </div>
+    <div class="fy-hint">Cada video = hook + cuerpo + CTA de la misma persona. Si un cuerpo no cabe en la duración, la IA lo recorta sola y regenera. Claude puntúa cada video (0–100) y deja el caption listo.
+      &nbsp;·&nbsp;<span class="lnk" onclick="fyRerender()">↻ re-render módulos</span>
+      &nbsp;·&nbsp;<span class="lnk" onclick="window.open('/api/factory/manifest')">⬇ manifest CSV</span>
+      &nbsp;·&nbsp;<span class="lnk" style="color:var(--r)" onclick="fyClear()">borrar combos</span></div>
+    <div id="fy-combos-box" style="margin-top:12px"></div>`;
+
+  const paso4=`
+    <div id="fy-queue-box"></div>
+    <div class="fy-hint">Publica 4–6 al día: ▶ descarga el video, súbelo en TikTok con el 📋 caption (deja el nombre H#-B#-C# en el caption — así se cruzan las métricas), activa ahí subtítulos y música, y márcalo ✓ publicado para que entre el siguiente a la cola.</div>`;
+
+  const paso5=`
+    <div class="fy-row">
+      <div class="fg" style="max-width:260px"><input class="fi" type="file" id="fy-csv" accept=".csv,text/csv"></div>
+      <button class="abtn" onclick="fyMetrics()">Importar CSV</button>
+    </div>
+    <div class="fy-hint">El viernes exporta el CSV de videos (Seller Center / TikTok Analytics) e impórtalo: el sistema cruza views y GMV por nombre y te dice qué hook, qué cuerpo y qué CTA ganan — eso define qué replicas la próxima semana.</div>
+    <div id="fy-attr-box" style="margin-top:12px"></div>`;
+
+  $('fy-form').innerHTML=`
+  <div style="font-size:18px;font-weight:700;margin-bottom:4px">Fábrica de creativos</div>
+  <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Tu ciclo semanal en 5 pasos — el banner morado te dice dónde vas</div>
+  ${campBar}
+  <div id="fy-next"></div>
+  <div id="fy-chips"></div>
+  ${fyStepShell(1,'🧠 Guiones por buyer persona',paso1)}
+  ${fyStepShell(2,'🎙 Grabar y subir módulos',paso2)}
+  ${fyStepShell(3,'⚡ Generar videos',paso3)}
+  ${fyStepShell(4,'📤 Publicar la cola de hoy',paso4)}
+  ${fyStepShell(5,'📊 Métricas — qué gana',paso5)}`;
   const sel=$('fy-type');if(sel)sel.value=f.type;
+  fyApplyOpen();
+}
+
+function fyNextStep(){
+  const hasAll=['hook','body','cta'].every(t=>F.mods.some(m=>m.type===t&&m.status==='ready'));
+  const readyC=F.combos.filter(c=>c.status==='ready').length;
+  if(!F.scripts.length&&!F.mods.length)return 1;
+  if(!hasAll)return 2;
+  if(!readyC)return 3;
+  if(F.queue.length)return 4;
+  return 5;
+}
+function fyTog(n){F.manual=(F.manual===n?-1:n);fyApplyOpen();}
+function fyApplyOpen(){
+  const open=F.manual==null?fyNextStep():F.manual;
+  for(let i=1;i<=5;i++){const e=$('fy-st-'+i);if(e)e.classList.toggle('open',i===open);}
 }
 
 async function fyAddResearch(){
@@ -907,20 +979,18 @@ function renderFyStudio(){
 
 function renderFyLists(){
   if(!F.camp){$('fy-lists').innerHTML='';return;}
+  if(!$('fy-st-1'))return; // el formulario aún no está montado
+  $('fy-lists').innerHTML='';
+  $('fy-chips').innerHTML=fyStats();
+  renderFyStudio();
+
+  // Paso 2 · módulos subidos
   const byType={hook:[],body:[],cta:[]};
   F.mods.forEach(m=>{(byType[m.type]||[]).push(m);});
   const cols=['hook','body','cta'].map(t=>`<div class="modcol"><h5>${TYPE_ES[t].toUpperCase()}S (${byType[t].length})</h5>${byType[t].map(fyModItem).join('')||'<div style="color:var(--t4);font-size:12px">Sin módulos</div>'}</div>`).join('');
+  $('fy-mods-box').innerHTML=F.mods.length?`<div class="modgrid">${cols}</div>`:'';
 
-  const queue=F.queue.length?`<div class="fy-sec"><h4>Cola de hoy — top ${F.queue.length} sin publicar (publica 4–6/día)</h4><div class="qwrap">${F.queue.map(q=>{
-    const[bg,fg]=scoreCol(q.score);
-    return`<div class="qcard"><div class="nm">${esc(q.name)} <span class="scorep" style="background:${bg};color:${fg}">${q.score!=null?Math.round(q.score):'—'}</span></div>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${(q.duration||0).toFixed(0)}s</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <a class="abtn" href="${furl(q.output_path)}" target="_blank" style="text-decoration:none">▶ Ver</a>
-      <button class="abtn" onclick='cpTxt(${JSON.stringify(q.caption||"")},this)'>📋 Caption</button>
-      <button class="abtn" onclick="fyPub(${q.id})">✓ Publicado</button>
-    </div></div>`;}).join('')}</div></div>`:'';
-
+  // Paso 3 · videos generados
   const rows=F.combos.map(c=>{
     const[bg,fg]=scoreCol(c.score);
     return`<tr>
@@ -933,42 +1003,55 @@ function renderFyLists(){
     <td>${c.published_at?'✓':''}</td>
     <td style="white-space:nowrap">${c.output_path?`<a class="lnk" href="${furl(c.output_path)}" target="_blank">ver</a> · `:''}<span class="lnk" onclick='cpTxt(${JSON.stringify(c.caption||"")},this)'>caption</span>${c.published_at?'':` · <span class="lnk" onclick="fyPub(${c.id})">publicado</span>`}</td>
   </tr>`;}).join('');
+  $('fy-combos-box').innerHTML=F.combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos. Cuando tus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
 
+  // Paso 4 · cola de hoy
+  $('fy-queue-box').innerHTML=F.queue.length?`<div class="qwrap">${F.queue.map(q=>{
+    const[bg,fg]=scoreCol(q.score);
+    return`<div class="qcard"><div class="nm">${esc(q.name)} <span class="scorep" style="background:${bg};color:${fg}">${q.score!=null?Math.round(q.score):'—'}</span></div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${(q.duration||0).toFixed(0)}s</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <a class="abtn" href="${furl(q.output_path)}" target="_blank" style="text-decoration:none">▶ Ver</a>
+      <button class="abtn" onclick='cpTxt(${JSON.stringify(q.caption||"")},this)'>📋 Caption</button>
+      <button class="abtn" onclick="fyPub(${q.id})">✓ Publicado</button>
+    </div></div>`;}).join('')}</div>`:'<div style="color:var(--t4);font-size:13px">Nada pendiente de publicar — genera videos en el paso 3.</div>';
+
+  // Paso 5 · atribución
   const attrRows=t=>F.attr.filter(a=>a.type===t&&a.videos_with_metrics>0).map(a=>`<tr>
     <td style="font-weight:600">${esc(a.label)}</td>
     <td style="font-size:12px" title="${esc(a.snippet)}">${esc(a.overlay_text||a.snippet||'')}</td>
     <td>${a.videos_with_metrics}</td><td>${a.avg_views!=null?fmtN(a.avg_views):'—'}</td>
     <td>${a.avg_gmv!=null?'$'+fmtN(a.avg_gmv):'—'}</td></tr>`).join('');
   const hasMetrics=F.attr.some(a=>a.videos_with_metrics>0);
-  const attr=hasMetrics?`<div class="fy-sec"><h4>Atribución por módulo — ¿qué gana?</h4><div class="modgrid">${['hook','body','cta'].map(t=>`<div><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">${TYPE_ES[t].toUpperCase()}S</h5><table><thead><tr><th></th><th>Texto</th><th>n</th><th>Views</th><th>GMV</th></tr></thead><tbody>${attrRows(t)||''}</tbody></table></div>`).join('')}</div></div>`:'';
+  $('fy-attr-box').innerHTML=hasMetrics?`<div class="modgrid">${['hook','body','cta'].map(t=>`<div><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">${TYPE_ES[t].toUpperCase()}S</h5><table><thead><tr><th></th><th>Texto</th><th>n</th><th>Views</th><th>GMV</th></tr></thead><tbody>${attrRows(t)||''}</tbody></table></div>`).join('')}</div>`:'';
 
-  renderFyStudio();
-  $('fy-lists').innerHTML=fyStats()+`
-  <div class="fy-sec"><h4>3 · Módulos</h4><div class="modgrid">${cols}</div></div>
-  <div class="fy-sec"><h4>4 · Generar combinaciones</h4>
-    <div class="fy-row">
-      <div class="fg"><label class="fl">Producto</label><input class="fi" value="${esc(F.prod)}" oninput="F.prod=this.value;localStorage.setItem('fy_prod',this.value)" placeholder="ej. Rosemary Shampoo"></div>
-      <div class="fg" style="max-width:110px"><label class="fl">Dur. mín (s)</label><input class="fi" type="number" value="${F.minD}" oninput="F.minD=+this.value"></div>
-      <div class="fg" style="max-width:110px"><label class="fl">Dur. máx (s)</label><input class="fi" type="number" value="${F.maxD}" oninput="F.maxD=+this.value"></div>
-      <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" onclick="fyGen()">⚡ Generar combinaciones</button>
-      <button class="abtn" onclick="fyRerender()">↻ Re-render</button>
-      <button class="abtn" onclick="window.open('/api/factory/manifest')">⬇ Manifest CSV</button>
-      <button class="abtn" style="color:var(--r)" onclick="fyClear()">Borrar combos</button>
-    </div>
-    <div style="font-size:11px;color:var(--t4);margin-top:8px">Combos nuevos = concat instantáneo de segmentos ya renderizados. Claude puntúa coherencia hook→cuerpo→CTA y genera el caption. Videos de ${F.minD}–${F.maxD}s, objetivo 25–40s.</div>
-  </div>
-  ${queue}
-  <div class="fy-sec"><h4>5 · Videos generados (${F.combos.length})</h4>
-    ${F.combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:'<div style="color:var(--t4);font-size:13px">Aún no hay combinaciones. Sube módulos y genera.</div>'}
-  </div>
-  <div class="fy-sec"><h4>6 · Métricas semanales (CSV del Seller Center / Analytics)</h4>
-    <div class="fy-row">
-      <div class="fg" style="max-width:260px"><input class="fi" type="file" id="fy-csv" accept=".csv,text/csv"></div>
-      <button class="abtn" onclick="fyMetrics()">Importar CSV</button>
-    </div>
-    <div style="font-size:11px;color:var(--t4);margin-top:8px">El sistema busca el nombre del combo (H1-B2-C3) en cada fila y cruza views/likes/GMV. Deja el nombre del archivo en el título o caption al publicar para poder cruzarlo.</div>
-  </div>
-  ${attr}`;
+  fySummaries(hasMetrics);
+  fyApplyOpen();
+}
+
+function fySummaries(hasMetrics){
+  const pend=F.scripts.filter(s=>s.status==='pending').length;
+  const rec=F.scripts.filter(s=>s.status==='recorded').length;
+  const sum1=F.scripts.length?`${pend} por grabar · ${rec} grabados`
+    :(F.research.some(r=>r.status==='done')?'videos transcritos — genera los guiones':'empieza aquí');
+  const readyM=F.mods.filter(m=>m.status==='ready').length;
+  const missing=['hook','body','cta'].filter(t=>!F.mods.some(m=>m.type===t&&m.status==='ready'));
+  const sum2=F.mods.length?`${readyM}/${F.mods.length} listos${missing.length?' · faltan: '+missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', '):''}`:'sin módulos aún';
+  const readyC=F.combos.filter(c=>c.status==='ready').length;
+  const sum3=readyC?`${readyC} videos`:'pendiente';
+  const sum4=F.queue.length?`${F.queue.length} por publicar`:'al día';
+  const sum5=hasMetrics?'con métricas':'pendiente del CSV semanal';
+  [[1,sum1],[2,sum2],[3,sum3],[4,sum4],[5,sum5]].forEach(([n,s])=>{const e=$('fy-sum-'+n);if(e)e.textContent=s;});
+
+  const nx=fyNextStep();
+  const msgs={
+    1:'Pega los links de videos que ya venden el producto y genera tus guiones por buyer persona',
+    2:missing.length&&F.mods.length?`Graba y sube lo que falta: ${missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', ')}`:'Graba los guiones pendientes y súbelos enlazados a su guion',
+    3:'Tus módulos están listos — presiona ⚡ Generar combinaciones',
+    4:`Publica la cola de hoy (${F.queue.length} video${F.queue.length===1?'':'s'} con caption listo)`,
+    5:'Ciclo al día 🎉 — el viernes importa el CSV de métricas para ver qué gana'
+  };
+  const e=$('fy-next');if(e)e.innerHTML=`<div class="fy-nextb" onclick="fyTog(${nx})">👉 <b>Siguiente:</b> ${msgs[nx]}</div>`;
 }
 
 async function fyEditIA(id,label){
