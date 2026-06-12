@@ -233,13 +233,13 @@ tr:hover td{background:#FAFAFA}
 </head>
 <body>
 <aside id="sidebar">
-  <div class="sb-hdr"><div class="sb-title">Creator Intelligence</div><div class="sb-sub">TikTok Shop · Script Generator</div></div>
+  <div class="sb-hdr"><div class="sb-title">Creator Intelligence</div><div class="sb-sub">TikTok Shop · Fábrica de creativos</div></div>
+  <button class="sb-ig" style="background:var(--o);margin-top:0;margin-bottom:14px" onclick="showFactory()">🎬 Fábrica de creativos</button>
   <div class="sb-sec"><span class="sb-lbl">CREADORES</span><div id="cl"></div></div>
   <button class="sb-add" onclick="openModal('c')">+ Agregar creador</button>
   <div class="sb-sec" style="margin-top:8px"><span class="sb-lbl">PRODUCTOS (KALODATA)</span><div id="pl"></div></div>
   <button class="sb-add" onclick="openModal('p')">+ Buscar producto</button>
   <button class="sb-ig" onclick="showInsights()">Insights globales</button>
-  <button class="sb-ig" style="margin-top:8px;background:var(--o)" onclick="showFactory()">Fábrica de creativos</button>
 </aside>
 <main id="main">
   <div class="view active" id="view-welcome"><div class="welcome"><div class="welcome-ico">✦</div><h2>Creator Intelligence</h2><p>Agrega un creador o busca un producto para comenzar</p></div></div>
@@ -1109,6 +1109,7 @@ async function fyMetrics(){
 
 /* ── Start ── */
 loadAll();
+showFactory(); // la fábrica es la página principal
 
 </script>
 </body>
