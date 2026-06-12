@@ -112,6 +112,9 @@ def download_video_audio(video_url: str, output_dir: str) -> str:
     opts = _make_ydl_opts({
         "format": "bestaudio/best",
         "outtmpl": outtmpl,
+        # Video único: que el error real se propague (geo-bloqueo, privado,
+        # extractor desactualizado) en vez de devolver None en silencio.
+        "ignoreerrors": False,
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",

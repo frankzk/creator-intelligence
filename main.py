@@ -406,9 +406,15 @@ async def factory_add_research(req: ResearchRequest):
         if not url or not url.lower().startswith("http"):
             continue
         dup = conn.execute(
-            "SELECT id FROM factory_research WHERE campaign_id=? AND url=?",
+            "SELECT id, status FROM factory_research WHERE campaign_id=? AND url=?",
             (req.campaign_id, url)).fetchone()
         if dup:
+            # Reintento: si el link falló antes, vuelve a la cola en vez de ignorarse
+            if dup["status"] == "error":
+                conn.execute(
+                    "UPDATE factory_research SET status='pending', error='' WHERE id=?",
+                    (dup["id"],))
+                added += 1
             continue
         conn.execute(
             "INSERT INTO factory_research (campaign_id, url, notes) VALUES (?,?,?)",

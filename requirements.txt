@@ -1,7 +1,9 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 python-dotenv==1.0.1
-yt-dlp==2024.12.6
+# yt-dlp sin version fija: TikTok rompe los descargadores cada pocas semanas.
+# Actualizalo seguido con: pip install -U yt-dlp
+yt-dlp
 faster-whisper==1.1.0
 anthropic==0.34.2
 playwright==1.49.0

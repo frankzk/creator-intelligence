@@ -81,10 +81,13 @@ def _process_source(row: dict):
         try:
             audio = download_video_audio(row["url"], AUDIO_DIR)
         except Exception as exc:
-            msg = str(exc)
-            if "NoneType" in msg or "Unable to" in msg:
-                msg = "No se pudo descargar (¿link válido/público?) — pega la transcripción a mano"
-            raise ValueError(msg) from exc
+            # Conservar el motivo real (recortado): suele indicar la causa
+            # (geo-bloqueo, video privado, o extractor de yt-dlp desactualizado).
+            detail = " ".join(str(exc).replace("ERROR:", "").split())[:160]
+            raise ValueError(
+                f"No se pudo descargar: {detail} — prueba `pip install -U yt-dlp` "
+                "y reintenta, o pega la transcripción a mano"
+            ) from exc
         _set_research(rid, status="transcribing")
         transcript = transcribe_and_cleanup(audio)
         if not transcript.strip():

@@ -851,6 +851,11 @@ async function fyDelResearch(id){
   try{await api('DELETE','/api/factory/research/'+id);await loadFactory();}
   catch(e){alert(e.message);}
 }
+async function fyRetryResearch(url){
+  if(!url)return;
+  try{await api('POST','/api/factory/research',{campaign_id:F.camp,urls:[url]});await loadFactory();}
+  catch(e){alert(e.message);}
+}
 async function fyGenScripts(){
   if(!F.camp)return;
   const n=F.research.filter(r=>r.status==='done').length;
@@ -931,7 +936,7 @@ function renderFyStudio(){
     return`<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0">
       <span style="color:${col};font-weight:600;min-width:92px">${RS_ST[r.status]||r.status}</span>
       <span style="color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url||'transcripción pegada a mano')}</span>
-      ${r.status==='error'?`<span style="color:var(--r)" title="${esc(r.error)}">${esc((r.error||'').slice(0,40))}</span>`:''}
+      ${r.status==='error'?`<span style="color:var(--r);max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.error)}">${esc((r.error||'').slice(0,80))}</span> <span class="lnk" onclick='fyRetryResearch(${JSON.stringify(r.url||"")})'>↻ reintentar</span>`:''}
       <span class="lnk" style="color:var(--r)" onclick="fyDelResearch(${r.id})">✕</span></div>`;
   }).join('')||'')+`<div style="margin-top:4px"><span class="lnk" onclick="fyPasteTranscript()">＋ pegar transcripción a mano</span></div>`;
   if(gb){
