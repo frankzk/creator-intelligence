@@ -24,7 +24,7 @@ def _get_client() -> anthropic.Anthropic:
         _client = anthropic.Anthropic(api_key=key, timeout=_timeout, max_retries=2)
     return _client
 
-_SONNET = "claude-sonnet-4-20250514"
+_SONNET = "claude-sonnet-4-6"
 
 
 def _safe(text, max_len: int = 0) -> str:

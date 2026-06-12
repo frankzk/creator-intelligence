@@ -141,6 +141,6 @@ creator-intelligence/
 
 - Base de datos SQLite local: `database.db`
 - Modelo de transcripción: `faster-whisper base` (CPU, int8)
-- Modelo de IA: `claude-sonnet-4-20250514`
+- Modelo de IA: `claude-sonnet-4-6`
 - Las operaciones largas (scraping, transcripción, análisis) corren en background threads — el frontend hace polling cada 3s hasta que terminan
 - El timeout del cliente Anthropic está configurado en 10 minutos para generaciones largas
