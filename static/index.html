@@ -713,12 +713,12 @@ function renderFyForm(){
     </div></div>`;
   if(!F.camp){
     $('fy-form').innerHTML=`<div style="font-size:18px;font-weight:700;margin-bottom:4px">Fábrica de creativos</div>
-    <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (captions + texto) y arma todas las combinaciones</div>${campBar}`;
+    <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (cortes IA + texto en pantalla) y arma todas las combinaciones</div>${campBar}`;
     return;
   }
   $('fy-form').innerHTML=`
   <div style="font-size:18px;font-weight:700;margin-bottom:4px">Fábrica de creativos</div>
-  <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (captions + texto) y arma todas las combinaciones</div>
+  <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Sube hooks, cuerpos y CTAs → el sistema los edita (cortes IA + texto en pantalla) y arma todas las combinaciones</div>
   ${campBar}
   <div class="fy-sec">
     <h4>1 · Estudio de guiones — copia lo que ya vende</h4>
@@ -750,7 +750,7 @@ function renderFyForm(){
         <input class="fi" type="file" id="fy-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv" multiple></div>
       <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" id="fy-up" onclick="fyUpload()">Subir</button>
     </div>
-    <div style="font-size:11px;color:var(--t4);margin-top:8px">El tipo se aplica a todos los archivos elegidos. Si eliges el guion que grabaste, el módulo hereda su ángulo y su texto en pantalla. Cada clip se normaliza a 1080×1920@30, se transcribe y se renderiza con captions automáticos.</div>
+    <div style="font-size:11px;color:var(--t4);margin-top:8px">El tipo se aplica a todos los archivos elegidos. Si eliges el guion que grabaste, el módulo hereda su ángulo y su texto en pantalla. Cada clip se normaliza a 1080×1920@30, se transcribe (para la edición IA y los scores) y se renderiza con tu texto en pantalla. Los subtítulos los activas en la app de TikTok al publicar.</div>
   </div>`;
   const sel=$('fy-type');if(sel)sel.value=f.type;
 }
@@ -933,6 +933,7 @@ function renderFyLists(){
       <div class="fg" style="max-width:110px"><label class="fl">Dur. mín (s)</label><input class="fi" type="number" value="${F.minD}" oninput="F.minD=+this.value"></div>
       <div class="fg" style="max-width:110px"><label class="fl">Dur. máx (s)</label><input class="fi" type="number" value="${F.maxD}" oninput="F.maxD=+this.value"></div>
       <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" onclick="fyGen()">⚡ Generar combinaciones</button>
+      <button class="abtn" onclick="fyRerender()">↻ Re-render</button>
       <button class="abtn" onclick="window.open('/api/factory/manifest')">⬇ Manifest CSV</button>
       <button class="abtn" style="color:var(--r)" onclick="fyClear()">Borrar combos</button>
     </div>
@@ -976,6 +977,12 @@ async function fyDelMod(id,label){
 async function fyGen(){
   if(!F.camp){alert('Selecciona una campaña');return;}
   try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,product_name:F.prod,min_duration:F.minD,max_duration:F.maxD});await loadFactory();}
+  catch(e){alert(e.message);}
+}
+async function fyRerender(){
+  if(!F.camp)return;
+  if(!confirm('¿Re-renderizar todos los módulos listos con la plantilla actual?\n\nLas combinaciones existentes se borran y al terminar presionas Generar de nuevo.'))return;
+  try{await api('POST','/api/factory/rerender',{campaign_id:F.camp});await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyClear(){

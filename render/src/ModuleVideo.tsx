@@ -17,6 +17,9 @@ export type ModuleProps = {
   words: Word[];
   overlayText: string;
   moduleType: 'hook' | 'body' | 'cta';
+  // Subtítulos karaoke quemados: apagados — se ponen nativos en la app de
+  // TikTok al publicar (suman SEO y el usuario los activa en un toque).
+  captions?: boolean;
 };
 
 export const defaultModuleProps: ModuleProps = {
@@ -25,6 +28,7 @@ export const defaultModuleProps: ModuleProps = {
   words: [],
   overlayText: 'Texto de ejemplo',
   moduleType: 'hook',
+  captions: false,
 };
 
 // Zonas seguras TikTok: la UI tapa ~el 15% inferior y el borde derecho.
@@ -152,7 +156,7 @@ const OverlayText: React.FC<{text: string; moduleType: ModuleProps['moduleType']
   );
 };
 
-export const ModuleVideo: React.FC<ModuleProps> = ({srcName, words, overlayText, moduleType}) => {
+export const ModuleVideo: React.FC<ModuleProps> = ({srcName, words, overlayText, moduleType, captions = false}) => {
   return (
     <AbsoluteFill style={{backgroundColor: '#000'}}>
       {srcName ? (
@@ -161,7 +165,7 @@ export const ModuleVideo: React.FC<ModuleProps> = ({srcName, words, overlayText,
         // Preview en Studio sin video cargado
         <AbsoluteFill style={{background: 'linear-gradient(180deg,#1e1b4b,#0f172a)'}} />
       )}
-      {words.length > 0 && <Captions words={words} />}
+      {captions && words.length > 0 && <Captions words={words} />}
       {overlayText ? <OverlayText text={overlayText} moduleType={moduleType} /> : null}
     </AbsoluteFill>
   );

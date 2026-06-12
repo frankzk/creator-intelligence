@@ -730,6 +730,35 @@ async def factory_mark_published(combo_id: int):
     return {"status": "published"}
 
 
+class RerenderRequest(BaseModel):
+    campaign_id: int
+
+
+@app.post("/api/factory/rerender")
+async def factory_rerender(req: RerenderRequest):
+    """Re-renderiza todos los módulos listos con la plantilla actual
+    (ej. tras cambiar captions/estilos). Los combos quedan obsoletos y se borran."""
+    conn = get_conn()
+    n = conn.execute(
+        "SELECT COUNT(*) AS n FROM factory_modules WHERE campaign_id=? AND status='ready'",
+        (req.campaign_id,)).fetchone()["n"]
+    if not n:
+        conn.close()
+        raise HTTPException(400, "No hay módulos listos para re-renderizar")
+    for r in conn.execute("SELECT output_path FROM factory_combos WHERE campaign_id=?",
+                          (req.campaign_id,)).fetchall():
+        if r["output_path"]:
+            Path(r["output_path"]).unlink(missing_ok=True)
+    conn.execute("DELETE FROM factory_combos WHERE campaign_id=?", (req.campaign_id,))
+    conn.execute(
+        "UPDATE factory_modules SET status='transcribed' WHERE campaign_id=? AND status='ready'",
+        (req.campaign_id,))
+    conn.commit()
+    conn.close()
+    vf.kick_pipeline()
+    return {"rerendering": n}
+
+
 @app.get("/api/factory/queue")
 async def factory_queue(n: int = 6, campaign_id: Optional[int] = None):
     """Cola del día: los mejores combos listos aún sin publicar."""

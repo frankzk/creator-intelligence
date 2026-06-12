@@ -85,8 +85,8 @@ La primera renderización descarga Chrome Headless Shell (~90 MB) automáticamen
 2. Sube 2+ hooks, 2+ cuerpos y 2+ CTAs (mp4/mov; cualquier resolución — se
    normalizan a 1080×1920@30 con audio a -14 LUFS). A los hooks ponles su
    **texto en pantalla**; a los CTAs, el texto de oferta (queda visible todo el módulo).
-3. Cada módulo pasa solo por: normalizar → transcribir (captions karaoke
-   palabra a palabra con faster-whisper) → **edición IA automática** (Claude
+3. Cada módulo pasa solo por: normalizar → transcribir (faster-whisper,
+   alimenta la edición IA y los scores) → **edición IA automática** (Claude
    analiza la transcripción con tiempos y corta silencios, tomas repetidas,
    falsos inicios y errores de grabación — puedes subir material crudo) →
    renderizar segmento con Remotion. Cada módulo listo tiene además
@@ -115,7 +115,7 @@ La primera renderización descarga Chrome Headless Shell (~90 MB) automáticamen
 - Licencia Remotion: gratis para individuos y empresas de hasta 3 personas
   (remotion.dev/license). Si creces, Company License en remotion.pro.
 - `cd render && npx remotion studio` abre el editor visual de la plantilla
-  (`render/src/ModuleVideo.tsx`: captions, colores, posiciones, safe zones).
+  (`render/src/ModuleVideo.tsx`: overlays, colores, posiciones, safe zones; los subtítulos karaoke existen pero van apagados — `captions: false` — porque se ponen nativos en TikTok al publicar).
 
 ## Estructura de archivos
 
@@ -128,7 +128,7 @@ creator-intelligence/
 ├── kalodata.py      # Playwright scraper de Kalodata
 ├── videofactory.py  # Fábrica: normalización, pipeline, matriz, métricas
 ├── database.py      # SQLite setup y queries
-├── render/          # Worker Remotion (Node): captions karaoke + overlays
+├── render/          # Worker Remotion (Node): texto en pantalla (overlays)
 │   ├── render.mjs   # Render por lotes (un bundle, N módulos)
 │   └── src/         # Composición ModuleVideo (plantilla editable)
 ├── static/
