@@ -449,6 +449,16 @@ async def factory_list_research(campaign_id: int):
     return [dict(r) for r in rows]
 
 
+@app.get("/api/factory/research/{research_id}")
+async def factory_get_research(research_id: int):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM factory_research WHERE id=?", (research_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "No encontrado")
+    return dict(row)
+
+
 @app.delete("/api/factory/research/{research_id}")
 async def factory_delete_research(research_id: int):
     conn = get_conn()

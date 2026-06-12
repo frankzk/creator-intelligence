@@ -653,7 +653,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{}};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -856,6 +856,15 @@ async function fyRetryResearch(url){
   try{await api('POST','/api/factory/research',{campaign_id:F.camp,urls:[url]});await loadFactory();}
   catch(e){alert(e.message);}
 }
+async function fyShowTr(id){
+  if(F.trOpen===id){F.trOpen=null;renderFyStudio();return;}
+  F.trOpen=id;
+  if(!F.trs[id]){
+    try{const d=await api('GET','/api/factory/research/'+id);F.trs[id]=(d.transcript||'').trim()||'(transcripción vacía)';}
+    catch(e){F.trs[id]='Error: '+e.message;}
+  }
+  renderFyStudio();
+}
 async function fyGenScripts(){
   if(!F.camp)return;
   const n=F.research.filter(r=>r.status==='done').length;
@@ -933,11 +942,14 @@ function renderFyStudio(){
   if(!rl)return;
   rl.innerHTML=(F.research.map(r=>{
     const col=r.status==='done'?'var(--g,#10B981)':r.status==='error'?'var(--r)':'var(--t3)';
+    const tr=F.trOpen===r.id?`<div style="font-size:12px;color:#333;background:#fafafa;border:1px solid var(--bd);border-radius:8px;padding:10px;margin:4px 0 8px;white-space:pre-wrap">${esc(F.trs[r.id]||'cargando...')}
+      <div style="margin-top:6px"><span class="lnk" onclick='cpTxt(${JSON.stringify(F.trs[r.id]||"")},this)'>📋 copiar transcripción</span></div></div>`:'';
     return`<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0">
       <span style="color:${col};font-weight:600;min-width:92px">${RS_ST[r.status]||r.status}</span>
       <span style="color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url||'transcripción pegada a mano')}</span>
+      ${r.status==='done'?`<span class="lnk" onclick="fyShowTr(${r.id})">${F.trOpen===r.id?'ocultar':'ver transcripción'}</span>`:''}
       ${r.status==='error'?`<span style="color:var(--r);max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.error)}">${esc((r.error||'').slice(0,80))}</span> <span class="lnk" onclick='fyRetryResearch(${JSON.stringify(r.url||"")})'>↻ reintentar</span>`:''}
-      <span class="lnk" style="color:var(--r)" onclick="fyDelResearch(${r.id})">✕</span></div>`;
+      <span class="lnk" style="color:var(--r)" onclick="fyDelResearch(${r.id})">✕</span></div>${tr}`;
   }).join('')||'')+`<div style="margin-top:4px"><span class="lnk" onclick="fyPasteTranscript()">＋ pegar transcripción a mano</span></div>`;
   if(gb){
     if(F.status.scripts_generating){gb.disabled=true;gb.textContent='Escribiendo guiones...';}
