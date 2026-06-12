@@ -96,21 +96,21 @@ def _process_source(row: dict):
 
 # ─── Generación de mapa de ángulos + guiones ─────────────────────────────────
 
-def kick_generation(campaign_id: int, product_name: str):
+def kick_generation(campaign_id: int, product_name: str, personas: list[str] | None = None):
     global _gen_running, _gen_error
     with _gen_lock:
         if _gen_running:
             return
         _gen_running = True
         _gen_error = ""
-    threading.Thread(target=_gen_worker, args=(campaign_id, product_name),
+    threading.Thread(target=_gen_worker, args=(campaign_id, product_name, personas or []),
                      daemon=True).start()
 
 
-def _gen_worker(campaign_id: int, product_name: str):
+def _gen_worker(campaign_id: int, product_name: str, personas: list[str]):
     global _gen_running, _gen_error
     try:
-        _generate(campaign_id, product_name)
+        _generate(campaign_id, product_name, personas)
     except Exception as exc:
         print(f"[factory/scripts] fatal: {exc}")
         with _gen_lock:
@@ -120,7 +120,7 @@ def _gen_worker(campaign_id: int, product_name: str):
             _gen_running = False
 
 
-def _generate(campaign_id: int, product_name: str):
+def _generate(campaign_id: int, product_name: str, personas: list[str]):
     from analyzer import build_module_scripts
 
     conn = get_conn()
@@ -132,15 +132,17 @@ def _generate(campaign_id: int, product_name: str):
     if not sources:
         raise ValueError("No hay videos transcritos para esta campaña")
 
-    result = build_module_scripts(product_name, sources)
+    result = build_module_scripts(product_name, sources, personas)
+    persona_list = result.get("personas", [])
     angle_map = result.get("angle_map", [])
     scripts = result.get("scripts", [])
     if not scripts:
         raise ValueError("Claude no devolvió guiones — reintenta")
 
     conn = get_conn()
-    conn.execute("UPDATE factory_campaigns SET angle_map=? WHERE id=?",
-                 (json.dumps(angle_map, ensure_ascii=False), campaign_id))
+    conn.execute("UPDATE factory_campaigns SET angle_map=?, personas=? WHERE id=?",
+                 (json.dumps(angle_map, ensure_ascii=False),
+                  json.dumps(persona_list, ensure_ascii=False), campaign_id))
     # Regenerar reemplaza solo los pendientes; lo grabado/descartado se conserva
     conn.execute("DELETE FROM factory_scripts WHERE campaign_id=? AND status='pending'",
                  (campaign_id,))
@@ -154,9 +156,11 @@ def _generate(campaign_id: int, product_name: str):
         except (TypeError, ValueError):
             est = 0.0
         conn.execute("""
-            INSERT INTO factory_scripts (campaign_id, type, angle, text, overlay_text, est_seconds)
-            VALUES (?,?,?,?,?,?)
-        """, (campaign_id, stype, str(s.get("angle") or "").strip(), text,
+            INSERT INTO factory_scripts
+                (campaign_id, type, persona, angle, text, overlay_text, est_seconds)
+            VALUES (?,?,?,?,?,?,?)
+        """, (campaign_id, stype, str(s.get("persona") or "").strip(),
+              str(s.get("angle") or "").strip(), text,
               str(s.get("overlay_text") or "").strip(), est))
     conn.commit()
     conn.close()

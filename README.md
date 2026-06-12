@@ -76,12 +76,14 @@ La primera renderización descarga Chrome Headless Shell (~90 MB) automáticamen
    semana (catálogo rotativo: cada producto ganador tiene su propia biblioteca
    de módulos y videos; al terminar el ciclo, archívala).
 1b. **Estudio de guiones**: pega 5–10 links de videos que ya estén vendiendo el
-   producto → el sistema los descarga y transcribe → Claude extrae el **mapa de
-   ángulos** y escribe **13 guiones modulares** (6 hooks · 4 cuerpos · 3 CTAs)
-   listos para grabar como voz en off, autocontenidos para que cualquier
-   combinación pegue. Si un link falla, pega la transcripción a mano. Al subir
-   cada grabación, enlázala con su guion: el módulo hereda el texto en pantalla
-   y el ángulo, y el guion se marca como grabado.
+   producto → el sistema los descarga y transcribe → Claude define los **buyer
+   personas** (o usa los que tú escribas), extrae el **mapa de ángulos** y
+   escribe guiones modulares **por persona** (3 hooks · 2 cuerpos · 2 CTAs cada
+   una, más CTAs genéricos). Regla de oro: en un video no se le habla a dos
+   audiencias — el persona viaja como tag del módulo y la matriz solo combina
+   piezas de la misma persona (los genéricos, sin tag, combinan con todas).
+   Si un link falla, pega la transcripción a mano. Al subir cada grabación,
+   enlázala con su guion: el módulo hereda persona, ángulo y texto en pantalla.
 2. Sube 2+ hooks, 2+ cuerpos y 2+ CTAs (mp4/mov; cualquier resolución — se
    normalizan a 1080×1920@30 con audio a -14 LUFS). A los hooks ponles su
    **texto en pantalla**; a los CTAs, el texto de oferta (queda visible todo el módulo).

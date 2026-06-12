@@ -455,6 +455,7 @@ async def factory_delete_research(research_id: int):
 class ScriptsGenRequest(BaseModel):
     campaign_id: int
     product_name: str = ""
+    personas: list[str] = []   # vacío = la IA los propone del análisis
 
 
 @app.post("/api/factory/scripts/generate")
@@ -466,25 +467,28 @@ async def factory_generate_scripts(req: ScriptsGenRequest):
     conn.close()
     if not n:
         raise HTTPException(400, "Primero transcribe al menos un video ganador (o pega una transcripción)")
-    ss.kick_generation(req.campaign_id, req.product_name)
+    ss.kick_generation(req.campaign_id, req.product_name, req.personas)
     return {"status": "generating", "sources": n}
 
 
 @app.get("/api/factory/scripts")
 async def factory_list_scripts(campaign_id: int):
     conn = get_conn()
-    camp = conn.execute("SELECT angle_map FROM factory_campaigns WHERE id=?",
+    camp = conn.execute("SELECT angle_map, personas FROM factory_campaigns WHERE id=?",
                         (campaign_id,)).fetchone()
     rows = conn.execute(
         "SELECT * FROM factory_scripts WHERE campaign_id=? ORDER BY "
         "CASE type WHEN 'hook' THEN 0 WHEN 'body' THEN 1 ELSE 2 END, id",
         (campaign_id,)).fetchall()
     conn.close()
-    try:
-        angle_map = json.loads((camp["angle_map"] if camp else "") or "[]")
-    except Exception:
-        angle_map = []
-    return {"angle_map": angle_map, "scripts": [dict(r) for r in rows]}
+
+    def _j(field):
+        try:
+            return json.loads((camp[field] if camp else "") or "[]")
+        except Exception:
+            return []
+    return {"angle_map": _j("angle_map"), "personas": _j("personas"),
+            "scripts": [dict(r) for r in rows]}
 
 
 class ScriptPatch(BaseModel):
@@ -540,6 +544,11 @@ async def factory_upload_module(
             angle = srow["angle"] or ""
             if not overlay:
                 overlay = srow["overlay_text"] or ""
+            # El buyer persona viaja como tag: la matriz solo combina piezas de la
+            # misma persona ('' = genérico, sin tag → combina con todas).
+            persona = (srow["persona"] or "").strip()
+            if persona and persona not in tag_list:
+                tag_list.append(persona)
             conn.execute("UPDATE factory_scripts SET status='recorded' WHERE id=?", (sid,))
     conn.execute("""
         INSERT INTO factory_modules

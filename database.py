@@ -148,6 +148,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             campaign_id INTEGER NOT NULL,
             type TEXT NOT NULL,                -- hook | body | cta
+            persona TEXT DEFAULT '',           -- buyer persona ('' = genérico, combina con todas)
             angle TEXT DEFAULT '',             -- ángulo de venta (del mapa)
             text TEXT NOT NULL,                -- guion de voz en off
             overlay_text TEXT DEFAULT '',      -- texto en pantalla sugerido
@@ -172,6 +173,11 @@ def init_db():
     camp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_campaigns)").fetchall()}
     if "angle_map" not in camp_cols:
         conn.execute("ALTER TABLE factory_campaigns ADD COLUMN angle_map TEXT DEFAULT '[]'")
+    if "personas" not in camp_cols:
+        conn.execute("ALTER TABLE factory_campaigns ADD COLUMN personas TEXT DEFAULT '[]'")
+    script_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_scripts)").fetchall()}
+    if "persona" not in script_cols:
+        conn.execute("ALTER TABLE factory_scripts ADD COLUMN persona TEXT DEFAULT ''")
     conn.commit()
     conn.close()
 

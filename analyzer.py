@@ -273,58 +273,84 @@ def get_global_insights(all_creators: list[dict]) -> dict:
 
 # ─── FACTORY: ESTUDIO DE GUIONES ─────────────────────────────────────────────
 
-def build_module_scripts(product_name: str, sources: list[dict]) -> dict:
-    """Mapa de ángulos + guiones modulares a partir de transcripciones de videos
-    que YA venden el producto. sources: [{transcript, notes}].
-    Devuelve {"angle_map": [...], "scripts": [...]} con 6 hooks, 4 cuerpos, 3 CTAs."""
+def build_module_scripts(product_name: str, sources: list[dict],
+                         personas: list[str] | None = None) -> dict:
+    """Buyer personas + mapa de ángulos + guiones modulares POR PERSONA, a partir
+    de transcripciones de videos que YA venden el producto.
+    La regla de oro: las piezas solo se combinan dentro de la misma persona —
+    no se le puede hablar a dos buyer personas en el mismo video.
+    Devuelve {"personas": [...], "angle_map": [...], "scripts": [...]}."""
     blocks = []
     for i, s in enumerate(sources[:12], 1):
         note = str(s.get("notes") or "").strip()
         head = f"VIDEO {i}" + (f" ({note[:100]})" if note else "")
         blocks.append(f"{head}:\n{_safe(s.get('transcript'), 900)}")
 
+    given = [p.strip() for p in (personas or []) if p.strip()]
+    if given:
+        persona_task = (
+            "TAREA 1 — Buyer personas: usa EXACTAMENTE estos (no inventes otros), "
+            "y complétales dolor principal, deseo y objeción típica a partir de los videos:\n"
+            + "\n".join(f"- {p}" for p in given[:4])
+        )
+    else:
+        persona_task = (
+            "TAREA 1 — Buyer personas: identifica los 2 (máximo 3) buyer personas "
+            "distintos a los que estos videos les venden (ej. 'mamá postparto con caída "
+            "de pelo' vs 'mujer 40+ con pelo debilitado'). Para cada uno: dolor "
+            "principal, deseo y objeción típica."
+        )
+
     prompt = (
         f"Producto: {_safe(product_name, 80)}. Audiencia: hispanos en USA "
         "(TikTok Shop, video en español, voz en off sobre b-roll).\n\n"
         "Transcripciones de videos que YA están vendiendo este producto:\n\n"
         + "\n---\n".join(blocks)
-        + """
+        + f"""
 
-TAREA 1 — Mapa de ángulos: identifica los 4-6 ángulos de venta que estos videos
-explotan (ej. miedo al problema, resultado visible, precio/oferta, testimonio,
-comparación, curiosidad científica). Para cada uno: qué evidencia hay en los
-videos y la fórmula de hook que usan.
+{persona_task}
 
-TAREA 2 — Guiones modulares para grabar como VOZ EN OFF. Exactamente:
-- 6 hooks (3-6s, 10-16 palabras), cada uno con un ángulo/fórmula DIFERENTE
-- 4 cuerpos (15-25s, 40-65 palabras), desarrollan el argumento con beneficios/prueba
-- 3 CTAs (4-8s, 12-22 palabras), siempre mencionan tocar la canasta naranja
+TAREA 2 — Mapa de ángulos: los 4-6 ángulos de venta que estos videos explotan,
+con su evidencia y la fórmula de hook que usan.
 
-REGLAS DE MODULARIDAD (crítico — los módulos se combinan al azar):
-- Cada módulo es autocontenido: PROHIBIDO referirse a otro módulo ("como te decía",
-  "además de lo anterior"). El cuerpo no saluda ni abre tema: entra directo al argumento.
-- Cualquier hook debe poder pegarse con cualquier cuerpo y cualquier CTA sin sonar raro.
+TAREA 3 — Guiones modulares para grabar como VOZ EN OFF, organizados POR PERSONA.
+Para CADA buyer persona exactamente:
+- 3 hooks (3-6s, 10-16 palabras), con ángulos DIFERENTES entre sí
+- 2 cuerpos (15-25s, 40-65 palabras), argumento con beneficios/prueba
+- 2 CTAs (4-8s, 12-22 palabras), siempre mencionan tocar la canasta naranja
+Si un CTA sirve igual para TODAS las personas (urgencia/oferta pura, sin mencionar
+el dolor de nadie), márcalo con persona "" — máximo 1 genérico en total.
+
+REGLAS DE COMBINABILIDAD (crítico — los módulos se combinan al azar DENTRO de
+cada persona; NUNCA se mezclan personas en un video):
+- Todas las piezas de una persona hablan al MISMO "tú": mismo dolor, misma promesa,
+  mismo registro. Cualquier hook + cuerpo + CTA de esa persona debe fluir natural.
+- Cada módulo es autocontenido: PROHIBIDO referirse a otro módulo ("como te decía").
+  El cuerpo no saluda ni abre tema: entra directo al argumento.
 - text: lenguaje hablado natural, sin emojis ni acotaciones de cámara.
 - overlay_text: texto en pantalla, máx 7 palabras, estilo TikTok (puede llevar 1 emoji);
   obligatorio en hooks, opcional en cuerpos/CTAs (déjalo "" si no aporta).
 - est_seconds: palabras ÷ 2.6, redondeado a 1 decimal.
+- El campo "persona" de cada guion debe coincidir LETRA POR LETRA con el nombre
+  del buyer persona (o "" si es genérico).
 
 Devuelve SOLO JSON:
-{
- "angle_map": [{"angle":"...","evidence":"...","hook_formula":"plantilla con [X]"}],
+{{
+ "personas": [{{"name":"...","pain":"...","desire":"...","objection":"..."}}],
+ "angle_map": [{{"angle":"...","evidence":"...","hook_formula":"plantilla con [X]"}}],
  "scripts": [
-   {"type":"hook","angle":"...","text":"...","overlay_text":"...","est_seconds":4.5},
-   {"type":"body","angle":"...","text":"...","overlay_text":"","est_seconds":20.0},
-   {"type":"cta","angle":"...","text":"...","overlay_text":"...","est_seconds":6.0}
+   {{"type":"hook","persona":"...","angle":"...","text":"...","overlay_text":"...","est_seconds":4.5}},
+   {{"type":"body","persona":"...","angle":"...","text":"...","overlay_text":"","est_seconds":20.0}},
+   {{"type":"cta","persona":"","angle":"...","text":"...","overlay_text":"...","est_seconds":6.0}}
  ]
-}"""
+}}"""
     )
 
     result = _parse_json(_call(
         messages=[{"role": "user", "content": prompt}],
         system="Eres estratega de creativos TikTok Shop para el mercado hispano de USA. "
                "Respondes SOLO con JSON válido.",
-        max_tokens=6000,
+        max_tokens=8000,
     ))
     return result if isinstance(result, dict) else {}
 
