@@ -521,6 +521,35 @@ async def factory_research_personas(req: PersonaResearchRequest):
     return {"status": "researching"}
 
 
+class PersonaRemoveRequest(BaseModel):
+    campaign_id: int
+    persona: str
+
+
+@app.post("/api/factory/personas/remove")
+async def factory_remove_persona(req: PersonaRemoveRequest):
+    """Quita una persona y todos sus guiones (p.ej. quedó de otro producto)."""
+    conn = get_conn()
+    conn.execute("DELETE FROM factory_scripts WHERE campaign_id=? AND persona=?",
+                 (req.campaign_id, req.persona))
+    row = conn.execute("SELECT personas, persona_candidates FROM factory_campaigns WHERE id=?",
+                       (req.campaign_id,)).fetchone()
+
+    def _prune(field):
+        try:
+            arr = json.loads((row[field] if row else "") or "[]")
+        except Exception:
+            arr = []
+        return [p for p in arr if not (isinstance(p, dict) and (p.get("name") or "") == req.persona)]
+
+    conn.execute("UPDATE factory_campaigns SET personas=?, persona_candidates=? WHERE id=?",
+                 (json.dumps(_prune("personas"), ensure_ascii=False),
+                  json.dumps(_prune("persona_candidates"), ensure_ascii=False), req.campaign_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
 class ScriptsGenRequest(BaseModel):
     campaign_id: int
     product_name: str = ""
