@@ -44,7 +44,9 @@ app.mount("/factory", StaticFiles(directory="factory"), name="factory")
 
 @app.get("/")
 async def root():
-    return FileResponse("static/index.html")
+    # no-cache: que el navegador siempre tome la última versión tras un git pull
+    return FileResponse("static/index.html",
+                        headers={"Cache-Control": "no-cache, must-revalidate"})
 
 
 # ─── Creators ─────────────────────────────────────────────────────────────────
