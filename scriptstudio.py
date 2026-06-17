@@ -15,6 +15,9 @@ _research_running = False
 _gen_lock = threading.Lock()
 _gen_running = False
 _gen_error = ""
+_pr_lock = threading.Lock()
+_pr_running = False
+_pr_error = ""
 
 
 def research_running() -> bool:
@@ -30,6 +33,50 @@ def generation_running() -> bool:
 def generation_error() -> str:
     with _gen_lock:
         return _gen_error
+
+
+def personas_researching() -> bool:
+    with _pr_lock:
+        return _pr_running
+
+
+def personas_error() -> str:
+    with _pr_lock:
+        return _pr_error
+
+
+# ─── Investigación de buyer personas (web + visión) ──────────────────────────
+
+def kick_persona_research(campaign_id: int, product_name: str, image_path: str):
+    global _pr_running, _pr_error
+    with _pr_lock:
+        if _pr_running:
+            return
+        _pr_running = True
+        _pr_error = ""
+    threading.Thread(target=_pr_worker, args=(campaign_id, product_name, image_path),
+                     daemon=True).start()
+
+
+def _pr_worker(campaign_id: int, product_name: str, image_path: str):
+    global _pr_running, _pr_error
+    try:
+        from analyzer import research_personas
+        personas = research_personas(product_name, image_path)
+        if not personas:
+            raise ValueError("No se obtuvieron buyer personas — reintenta")
+        conn = get_conn()
+        conn.execute("UPDATE factory_campaigns SET persona_candidates=? WHERE id=?",
+                     (json.dumps(personas, ensure_ascii=False), campaign_id))
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        print(f"[factory/personas] fatal: {exc}")
+        with _pr_lock:
+            _pr_error = str(exc)[:300]
+    finally:
+        with _pr_lock:
+            _pr_running = False
 
 
 # ─── Descarga + transcripción de videos de referencia ────────────────────────

@@ -346,6 +346,38 @@ async def factory_list_campaigns(include_archived: bool = False):
     return [dict(r) for r in rows]
 
 
+class CampaignFromPhoto(BaseModel):
+    image_filename: str
+
+
+@app.post("/api/factory/campaigns/from-photo")
+async def factory_campaign_from_photo(req: CampaignFromPhoto):
+    """Crea la campaña a partir de la foto: la IA le pone nombre y la foto queda guardada."""
+    fn = (req.image_filename or "").strip()
+    path = os.path.join("uploads", fn) if fn else ""
+    if not fn or not os.path.exists(path):
+        raise HTTPException(400, "Falta la foto del producto")
+    name = ""
+    try:
+        from analyzer import name_product_from_photo
+        name = (await asyncio.to_thread(name_product_from_photo, path) or "").strip()
+    except Exception as exc:
+        print(f"[campaign/name] {exc}")
+    conn = get_conn()
+    if not name:
+        n = conn.execute("SELECT COUNT(*) AS n FROM factory_campaigns").fetchone()["n"]
+        name = f"Producto {n + 1}"
+    base, i = name, 2
+    while conn.execute("SELECT id FROM factory_campaigns WHERE name=?", (name,)).fetchone():
+        name = f"{base} {i}"
+        i += 1
+    conn.execute("INSERT INTO factory_campaigns (name, product_image) VALUES (?,?)", (name, fn))
+    conn.commit()
+    row = conn.execute("SELECT * FROM factory_campaigns WHERE name=?", (name,)).fetchone()
+    conn.close()
+    return dict(row)
+
+
 @app.post("/api/factory/campaigns")
 async def factory_create_campaign(req: CampaignRequest):
     name = req.name.strip()
@@ -468,6 +500,27 @@ async def factory_delete_research(research_id: int):
     return {"status": "deleted"}
 
 
+class PersonaResearchRequest(BaseModel):
+    campaign_id: int
+
+
+@app.post("/api/factory/personas/research")
+async def factory_research_personas(req: PersonaResearchRequest):
+    """La IA investiga (web + foto) y propone 2-3 buyer personas de voces reales."""
+    conn = get_conn()
+    camp = conn.execute("SELECT name, product_image FROM factory_campaigns WHERE id=?",
+                        (req.campaign_id,)).fetchone()
+    conn.close()
+    if not camp:
+        raise HTTPException(400, "Campaña inexistente")
+    img = camp["product_image"] or ""
+    path = os.path.join("uploads", img) if img else ""
+    if not img or not os.path.exists(path):
+        raise HTTPException(400, "Sube la foto del producto primero")
+    ss.kick_persona_research(req.campaign_id, camp["name"], path)
+    return {"status": "researching"}
+
+
 class ScriptsGenRequest(BaseModel):
     campaign_id: int
     product_name: str = ""
@@ -510,8 +563,9 @@ async def factory_generate_scripts(req: ScriptsGenRequest):
 @app.get("/api/factory/scripts")
 async def factory_list_scripts(campaign_id: int):
     conn = get_conn()
-    camp = conn.execute("SELECT angle_map, personas FROM factory_campaigns WHERE id=?",
-                        (campaign_id,)).fetchone()
+    camp = conn.execute(
+        "SELECT angle_map, personas, persona_candidates FROM factory_campaigns WHERE id=?",
+        (campaign_id,)).fetchone()
     rows = conn.execute(
         "SELECT * FROM factory_scripts WHERE campaign_id=? ORDER BY "
         "CASE type WHEN 'hook' THEN 0 WHEN 'body' THEN 1 ELSE 2 END, id",
@@ -524,6 +578,7 @@ async def factory_list_scripts(campaign_id: int):
         except Exception:
             return []
     return {"angle_map": _j("angle_map"), "personas": _j("personas"),
+            "persona_candidates": _j("persona_candidates"),
             "scripts": [dict(r) for r in rows]}
 
 
@@ -840,6 +895,8 @@ async def factory_status():
         "scripts_error": ss.generation_error(),
         "edits_running": vf.edits_running(),
         "edit_note": vf.edit_note(),
+        "personas_researching": ss.personas_researching(),
+        "personas_error": ss.personas_error(),
         "api_key_present": bool(os.getenv("ANTHROPIC_API_KEY")),
     }
 

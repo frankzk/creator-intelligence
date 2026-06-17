@@ -292,6 +292,49 @@ CUERPOS (varía la estructura entre ellos):
 CTAs (4-8s): instrucción de compra clara y natural; menciona tocar la canasta naranja.
 """
 
+AGGRESSIVE_SELL = """MODO VENTA AGRESIVA (máxima conversión — supervisado por el usuario):
+- Pattern interrupt brutal en el primer segundo: detén el scroll sí o sí.
+- Ataca el dolor en carne viva, sin rodeos; nómbralo como lo vive la persona.
+- Urgencia y escasez reales (se está agotando, oferta de hoy, antes de que suba el precio).
+- Contraste fuerte: el "antes" miserable contra el "después" que la persona desea.
+- Órdenes directas y seguras: "deja de…", "haz esto hoy…", "corre a la canasta naranja".
+- Promesas potentes pero en formato TESTIMONIO/opinión personal ("a mí me…", "en mi caso…"),
+  nunca como hecho médico o garantía absoluta.
+- Protege el ALCANCE de la cuenta: evita palabras que la plataforma castiga y bajan el reach
+  (cura, curar, garantizado, milagro, FDA, diagnóstico, adelgaza). Vende durísimo SIN esas palabras."""
+
+
+def _image_block(image_path: str) -> dict:
+    """Bloque de imagen base64 para visión (jpg/png/webp)."""
+    ext = Path(image_path).suffix.lower()
+    media_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                 ".png": "image/png", ".webp": "image/webp"}
+    with open(image_path, "rb") as f:
+        b64 = base64.standard_b64encode(f.read()).decode()
+    return {"type": "image",
+            "source": {"type": "base64", "media_type": media_map.get(ext, "image/jpeg"), "data": b64}}
+
+
+def _parse_json_loose(text: str):
+    """Extrae JSON de una respuesta que puede traer prosa o citas (web search)."""
+    import re
+    text = (text or "").strip()
+    m = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
+    if m:
+        text = m.group(1).strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    for open_c, close_c in (("{", "}"), ("[", "]")):
+        i, j = text.find(open_c), text.rfind(close_c)
+        if i != -1 and j != -1 and j > i:
+            try:
+                return json.loads(text[i:j + 1])
+            except Exception:
+                continue
+    raise ValueError("No se pudo extraer JSON de la respuesta")
+
 
 def build_module_scripts(product_name: str, sources: list[dict] | None = None,
                          brief: str = "", image_path: str | None = None) -> dict:
@@ -334,6 +377,7 @@ def build_module_scripts(product_name: str, sources: list[dict] | None = None,
         "es solo una pista (puede ser una marca, no descriptivo).\n\n"
         + ctx
         + TIKTOK_METHODOLOGY
+        + "\n\n" + AGGRESSIVE_SELL
         + f"""
 
 {persona_task}
@@ -372,17 +416,10 @@ Devuelve SOLO JSON:
 }}"""
     )
 
-    # Visión: si hay foto, va como bloque de imagen (mismo patrón que generate_scripts)
+    # Visión: si hay foto, va como bloque de imagen
     if image_path and os.path.exists(image_path):
-        ext = Path(image_path).suffix.lower()
-        media_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
-        media_type = media_map.get(ext, "image/jpeg")
-        with open(image_path, "rb") as f:
-            img_b64 = base64.standard_b64encode(f.read()).decode()
-        user_content = [
-            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_b64}},
-            {"type": "text", "text": "Esta es la FOTO del producto.\n\n" + prompt},
-        ]
+        user_content = [_image_block(image_path),
+                        {"type": "text", "text": "Esta es la FOTO del producto.\n\n" + prompt}]
     else:
         user_content = prompt
 
@@ -393,6 +430,81 @@ Devuelve SOLO JSON:
         max_tokens=8000,
     ))
     return result if isinstance(result, dict) else {}
+
+
+# ─── FACTORY: INVESTIGACIÓN DE BUYER PERSONAS (web + visión) ─────────────────
+
+def _call_web(user_content, system: str, tool_version: str, max_tokens: int = 3500) -> str:
+    """Llamada con la herramienta de búsqueda web server-side. Devuelve el texto
+    final (concatenado), manejando pause_turn del loop server-side."""
+    client = _get_client()
+    tools = [{"type": tool_version, "name": "web_search"}]
+    messages = [{"role": "user", "content": user_content}]
+    resp = None
+    for _ in range(4):
+        resp = client.messages.create(
+            model=_SONNET, max_tokens=max_tokens, system=system, tools=tools, messages=messages,
+        )
+        if getattr(resp, "stop_reason", None) == "pause_turn":
+            messages.append({"role": "assistant", "content": resp.content})
+            continue
+        break
+    return "\n".join(getattr(b, "text", "") for b in resp.content
+                     if getattr(b, "type", None) == "text")
+
+
+def _extract_personas(data) -> list[dict]:
+    if isinstance(data, dict):
+        data = data.get("personas", data.get("buyer_personas", []))
+    return [p for p in data if isinstance(p, dict)] if isinstance(data, list) else []
+
+
+def research_personas(product_name: str = "", image_path: str | None = None) -> list[dict]:
+    """Descubre 2-3 buyer personas de voces reales (Reddit, foros, reseñas, YouTube)
+    vía búsqueda web; si la web no rinde o no está disponible, cae al conocimiento
+    del modelo. Devuelve [{name, pain, desire, objection, evidence}]."""
+    system = ("Eres estratega de marketing de respuesta directa para TikTok Shop "
+              "(mercado hispano de USA). Respondes SOLO con JSON válido.")
+    instr = (
+        f"Pista de nombre/marca: {_safe(product_name, 80)}.\n"
+        "1) Identifica el PRODUCTO mirando la FOTO.\n"
+        "2) INVESTIGA en la web las voces reales sobre este producto o su categoría: quejas, "
+        "dolores, deseos y experiencias en Reddit, foros, reseñas, YouTube y blogs. "
+        "Cita brevemente de dónde sale cada hallazgo.\n"
+        "3) Destila 2-3 BUYER PERSONAS DISTINTOS. Para cada uno: name (etiqueta corta), "
+        "pain (el dolor real, en sus palabras), desire, objection, evidence (qué encontraste "
+        "y dónde; si te apoyaste en tu conocimiento, escribe 'razonamiento').\n"
+        'Devuelve SOLO JSON: {"personas":[{"name":"...","pain":"...","desire":"...",'
+        '"objection":"...","evidence":"..."}]}'
+    )
+    content = [instr]
+    if image_path and os.path.exists(image_path):
+        content = [_image_block(image_path), {"type": "text", "text": instr}]
+
+    # 1) Búsqueda web en vivo (probando la versión nueva y la anterior de la tool)
+    for tool_version in ("web_search_20260209", "web_search_20250305"):
+        try:
+            personas = _extract_personas(_parse_json_loose(_call_web(content, system, tool_version)))
+            if personas:
+                return personas
+        except Exception as exc:
+            print(f"[personas/web {tool_version}] {str(exc)[:160]}")
+
+    # 2) Respaldo: conocimiento del modelo (sin web)
+    raw = _call(messages=[{"role": "user", "content": content}], system=system, max_tokens=2000)
+    return _extract_personas(_parse_json_loose(raw))
+
+
+def name_product_from_photo(image_path: str) -> str:
+    """Nombre corto y comercial del producto mirando la foto (para auto-nombrar la campaña)."""
+    if not (image_path and os.path.exists(image_path)):
+        return ""
+    content = [_image_block(image_path), {"type": "text", "text":
+        "Mira la foto del producto y devuelve SOLO un nombre corto y comercial (2 a 4 palabras, "
+        "sin comillas ni punto final) para nombrar la campaña. Si hay marca visible, úsala."}]
+    txt = _call(messages=[{"role": "user", "content": content}], max_tokens=30)
+    name = (txt or "").strip().strip('"').splitlines()[0].strip() if txt else ""
+    return name[:60]
 
 
 # ─── FACTORY: EDICIÓN INTELIGENTE DE MÓDULOS ─────────────────────────────────

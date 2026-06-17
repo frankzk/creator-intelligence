@@ -75,9 +75,14 @@ La primera renderización descarga Chrome Headless Shell (~90 MB) automáticamen
 1. Sidebar → **Fábrica de creativos** → crea la **campaña** del producto de la
    semana (catálogo rotativo: cada producto ganador tiene su propia biblioteca
    de módulos y videos; al terminar el ciclo, archívala).
+1a. **Nueva campaña desde la foto**: "➕ Nueva campaña" pide la **foto del producto**
+   y la IA le pone nombre sola (no escribes "Bellavita"); la foto queda guardada.
 1b. **Estudio de guiones**: sube la **foto del producto** (obligatoria) y, opcional,
-   un texto con el **buyer persona o ángulo** al que apuntas (trabajas uno a la
-   vez). Claude reconoce el producto en la foto, define ese buyer persona y
+   un texto con el **buyer persona o ángulo** al que apuntas (o pulsa **🔍 Investigar
+   buyer persona**: la IA busca en la web —Reddit, foros, reseñas, YouTube— las
+   quejas/deseos reales de la gente y propone 2-3 buyer personas con su evidencia;
+   eliges uno y genera. Si la web no rinde, cae a su conocimiento). Trabajas uno a la
+   vez. Claude reconoce el producto en la foto, define ese buyer persona y
    escribe guiones modulares **por persona** (5 hooks · 3 cuerpos · 3 CTAs, más
    CTAs genéricos), aplicando metodología probada de TikTok Shop (estructura
    "Doble Caída"/Zeigarnik, fórmula directa, demostración; frases cortas, "tú

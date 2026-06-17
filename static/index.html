@@ -653,7 +653,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',advOpen:false};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',advOpen:false};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -693,19 +693,27 @@ async function loadFactory(){
       api('GET',`/api/factory/scripts?${q}`)
     ]);
     F.mods=mods;F.combos=combos;F.queue=queue;F.status=status;F.attr=attr;
-    F.research=research;F.scripts=sc.scripts||[];F.angles=sc.angle_map||[];F.personas=sc.personas||[];
+    F.research=research;F.scripts=sc.scripts||[];F.angles=sc.angle_map||[];F.personas=sc.personas||[];F.personaCandidates=sc.persona_candidates||[];
     renderFyLists();
   }catch(e){$('fy-lists').innerHTML=`<p style="color:var(--r)">${esc(e.message)}</p>`;}
 }
 
-async function fyNewCamp(){
-  const name=prompt('Nombre del producto/campaña (ej. Rosemary Shampoo):');
-  if(!name||!name.trim())return;
+function fyNewCamp(){
+  // Foto primero: la IA nombra la campaña desde la foto (no escribes "Bellavita")
+  let inp=$('fy-newcamp-file');
+  if(!inp){inp=document.createElement('input');inp.type='file';inp.id='fy-newcamp-file';inp.accept='image/png,image/jpeg,image/webp';inp.style.display='none';inp.onchange=fyNewCampPhoto;document.body.appendChild(inp);}
+  inp.value='';inp.click();
+}
+async function fyNewCampPhoto(e){
+  const file=e.target.files[0];if(!file)return;
   try{
-    const c=await api('POST','/api/factory/campaigns',{name:name.trim()});
-    F.camp=c.id;localStorage.setItem('fy_camp',c.id);F.prod=c.name;localStorage.setItem('fy_prod',c.name);
+    const fd=new FormData();fd.append('file',file);
+    const r=await fetch('/api/upload',{method:'POST',body:fd});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Error');
+    const c=await api('POST','/api/factory/campaigns/from-photo',{image_filename:d.filename});
+    F.camp=c.id;localStorage.setItem('fy_camp',c.id);F.prod=c.name;localStorage.setItem('fy_prod',c.name);F.manual=null;
     await loadCamps();renderFyForm();await loadFactory();
-  }catch(e){alert(e.message);}
+  }catch(err){alert('Error creando la campaña: '+err.message);}
 }
 async function fyArchiveCamp(){
   const c=F.camps.find(x=>x.id===F.camp);if(!c)return;
@@ -761,10 +769,14 @@ function renderFyForm(){
       <div class="fg">
         <label class="fl">Buyer persona o ángulo (opcional)</label>
         <input class="fi" id="fy-brief" placeholder="ej. mamá postparto · conquistar a una mujer · regalo para mamá">
-        <div class="fy-hint" style="margin-top:8px">La IA reconoce el producto en la foto y escribe los guiones. Escribe opcionalmente a quién le hablas o el ángulo. <b>Trabajas un buyer persona a la vez — cada generación se suma a las anteriores.</b></div>
-        <button class="gbtn" style="width:auto;margin:10px 0 0;padding:10px 24px" id="fy-gensc" onclick="fyGenScripts()">✨ Generar guiones</button>
+        <div class="fy-hint" style="margin-top:8px">La IA reconoce el producto en la foto y escribe los guiones. Escribe a quién le hablas, o deja que la IA <b>investigue</b> el buyer persona de voces reales. <b>Trabajas uno a la vez — cada generación se suma a las anteriores.</b></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="gbtn" style="width:auto;margin:0;padding:10px 24px" id="fy-gensc" onclick="fyGenScripts()">✨ Generar guiones</button>
+          <button class="abtn" id="fy-research-btn" onclick="fyResearchPersonas()">🔍 Investigar buyer persona</button>
+        </div>
       </div>
     </div>
+    <div id="fy-personacands"></div>
     <div style="margin-top:14px"><span class="lnk" id="fy-advlnk" onclick="fyToggleAdv()">${F.advOpen?'▾':'▸'} añadir videos ganadores como contexto (opcional)</span></div>
     <div id="fy-adv" style="display:${F.advOpen?'block':'none'};margin-top:8px">
       <div class="fy-row">
@@ -902,6 +914,14 @@ function fyToggleAdv(){
   const e=$('fy-adv');if(e)e.style.display=F.advOpen?'block':'none';
   const l=$('fy-advlnk');if(l)l.textContent=(F.advOpen?'▾':'▸')+' añadir videos ganadores como contexto (opcional)';
 }
+async function fyResearchPersonas(){
+  if(!F.camp)return;
+  if(!F.prodImg){alert('Sube la foto del producto primero');return;}
+  try{await api('POST','/api/factory/personas/research',{campaign_id:F.camp});await loadFactory();}
+  catch(e){alert(e.message);}
+}
+function fyUsePersona(name){const bi=$('fy-brief');if(bi){bi.value=name;bi.focus();}}
+async function fyUsePersonaGen(name){const bi=$('fy-brief');if(bi)bi.value=name;await fyGenScripts();}
 async function fyGenScripts(){
   if(!F.camp)return;
   const hasVids=F.research.filter(r=>r.status==='done').length;
@@ -948,6 +968,7 @@ function fyStats(){
   if(busy)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>${F.status.combos_running?'Generando combinaciones...':'Procesando módulos...'}</span>`);
   if(F.status.research_running)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Transcribiendo videos ganadores...</span>`);
   if(F.status.scripts_generating)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Escribiendo guiones...</span>`);
+  if(F.status.personas_researching)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>🔍 Investigando buyer personas (web)...</span>`);
   if(F.status.api_key_present===false)chips.push(`<span class="fy-chip" style="color:#fff;background:var(--r);border-color:var(--r)">⛔ Falta ANTHROPIC_API_KEY en el archivo .env — sin ella no hay edición IA, scores, captions ni guiones. Agrégala y reinicia la app.</span>`);
   if(F.status.edits_running)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>✂ La IA está editando módulos (silencios, repeticiones, duración)...</span>`);
   if(F.status.edit_note)chips.push(`<span class="fy-chip" style="color:#B45309;border-color:#FCD34D;background:#FFFBEB">✂ ${esc(F.status.edit_note)}</span>`);
@@ -977,6 +998,21 @@ const RS_ST={pending:'en cola',downloading:'descargando',transcribing:'transcrib
 function renderFyStudio(){
   const rl=$('fy-research'),an=$('fy-angles'),sc=$('fy-scripts'),sel=$('fy-script'),gb=$('fy-gensc');
   if(!rl)return;
+  const rb=$('fy-research-btn');
+  if(rb){const busy=F.status.personas_researching;rb.disabled=busy;rb.textContent=busy?'🔍 Investigando...':'🔍 Investigar buyer persona';}
+  const pc=$('fy-personacands');
+  if(pc){
+    const err=F.status.personas_error?`<div style="font-size:12px;color:var(--r);margin-top:8px">No se pudo investigar: ${esc(F.status.personas_error)} <span class="lnk" onclick="fyResearchPersonas()">reintentar</span></div>`:'';
+    pc.innerHTML=err+(F.personaCandidates.length?`<div style="margin-top:12px"><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">BUYER PERSONAS SUGERIDOS (de voces reales) — elige uno y genera</h5>
+      <div class="modgrid">${F.personaCandidates.map(p=>`<div class="modit">
+        <span class="lbl">👤 ${esc(p.name||'')}</span>
+        ${p.pain?`<div style="font-size:12px;margin:3px 0"><b>dolor:</b> ${esc(p.pain)}</div>`:''}
+        ${p.desire?`<div style="font-size:12px"><b>desea:</b> ${esc(p.desire)}</div>`:''}
+        ${p.objection?`<div style="font-size:12px"><b>objeción:</b> ${esc(p.objection)}</div>`:''}
+        ${p.evidence?`<div class="ov">${esc(p.evidence)}</div>`:''}
+        <div class="meta"><span class="lnk" onclick='fyUsePersonaGen(${JSON.stringify(p.name||"")})'>✨ Usar y generar</span> · <span class="lnk" onclick='fyUsePersona(${JSON.stringify(p.name||"")})'>solo elegir</span></div>
+      </div>`).join('')}</div></div>`:'');
+  }
   rl.innerHTML=(F.research.map(r=>{
     const col=r.status==='done'?'var(--g,#10B981)':r.status==='error'?'var(--r)':'var(--t3)';
     const tr=F.trOpen===r.id?`<div style="font-size:12px;color:#333;background:#fafafa;border:1px solid var(--bd);border-radius:8px;padding:10px;margin:4px 0 8px;white-space:pre-wrap">${esc(F.trs[r.id]||'cargando...')}
