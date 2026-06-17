@@ -239,6 +239,13 @@ tr:hover td{background:#FAFAFA}
 .gp-cv{color:var(--t4);transition:transform .15s;font-size:11px}
 .gp.open .gp-cv{transform:rotate(180deg)}
 .gp-coll{font-size:12px;color:var(--p);margin:10px 0 4px;cursor:pointer;user-select:none}
+.ptabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}
+.ptab{display:flex;align-items:center;gap:7px;padding:7px 14px;border:1px solid var(--bd);border-radius:20px;background:#fff;cursor:pointer;font-size:12.5px;color:var(--t2);transition:all .12s;white-space:nowrap}
+.ptab:hover{border-color:var(--p);color:var(--p)}
+.ptab.active{background:var(--p);border-color:var(--p);color:#fff}
+.ptab .b{font-size:11px;opacity:.85;font-weight:600}
+.pblock-hd{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.pblock-hd .nm{font-weight:600;font-size:14px}
 .pdetail{font-size:11.5px;color:var(--t3);background:var(--bg);border-radius:6px;padding:8px 11px;margin-bottom:12px;line-height:1.55}
 .sc-card{border:1px solid var(--bd);border-left:3px solid var(--bd);border-radius:7px;padding:10px 12px;margin-bottom:9px;background:#fff;transition:box-shadow .15s}
 .sc-card:hover{box-shadow:0 1px 5px rgba(0,0,0,.07)}
@@ -679,7 +686,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:''};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:'',activePersona:''};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -706,6 +713,7 @@ function fySyncPhoto(){
   const c=F.camps.find(x=>x.id===F.camp);
   F.prodImg=c&&c.product_image?c.product_image:'';
   F.prodImgU=F.prodImg?('/uploads/'+F.prodImg):'';
+  F.activePersona='';  // al cambiar de campaña, empieza en la última persona
 }
 
 async function loadFactory(){
@@ -948,7 +956,7 @@ async function fyResearchPersonas(){
 }
 function fyUsePersona(name){const bi=$('fy-brief');if(bi){bi.value=name;bi.focus();}}
 async function fyUsePersonaGen(name){const bi=$('fy-brief');if(bi)bi.value=name;await fyGenScripts();}
-function fyGpTog(name){const eff=(name in F.gpOpen)?F.gpOpen[name]:(name===F._defOpen);F.gpOpen[name]=!eff;renderFyStudio();}
+function fyTab(key){F.activePersona=key;renderFyStudio();}
 function fyCtxTog(){F.ctxOpen=!F.ctxOpen;renderFyStudio();}
 async function fyRemovePersona(name){
   if(!confirm(`¿Quitar "${name}" y TODOS sus guiones de esta campaña? (úsalo si esta persona es de otro producto)`))return;
@@ -960,8 +968,11 @@ async function fyGenScripts(){
   const hasVids=F.research.filter(r=>r.status==='done').length;
   if(!F.prodImg&&!hasVids){alert('Sube la foto del producto para generar guiones');return;}
   const brief=($('fy-brief')?.value||'').trim();
-  try{await api('POST','/api/factory/scripts/generate',{campaign_id:F.camp,product_name:F.prod,brief,image_filename:F.prodImg||''});await loadFactory();}
-  catch(e){alert(e.message);}
+  try{
+    await api('POST','/api/factory/scripts/generate',{campaign_id:F.camp,product_name:F.prod,brief,image_filename:F.prodImg||''});
+    await loadFactory();
+    if(F.personas.length){F.activePersona=F.personas[F.personas.length-1].name;renderFyStudio();}
+  }catch(e){alert(e.message);}
 }
 async function fyScriptSt(id,st){
   try{await api('PATCH','/api/factory/scripts/'+id,{status:st});await loadFactory();}
@@ -1082,29 +1093,22 @@ function renderFyStudio(){
       return`<div class="modcol"><h5>${TYPE_ES[t].toUpperCase()}S (${its.length})</h5>${its.map(scriptCard).join('')||'<div style="color:var(--t4);font-size:12px">—</div>'}</div>`;}).join('')}</div>`;
     const pdetail=p=>p&&(p.pain||p.desire||p.objection)?`<div class="pdetail">${p.pain?`<b>dolor:</b> ${esc(p.pain)}`:''}${p.desire?` · <b>desea:</b> ${esc(p.desire)}`:''}${p.objection?` · <i>objeción: ${esc(p.objection)}</i>`:''}</div>`:'';
     const names=[...new Set([...F.personas.map(p=>p.name||''),...vis.map(s=>s.persona||'')])].filter(Boolean);
-    const groups=names.map(n=>({name:n,items:vis.filter(s=>(s.persona||'')===n)})).filter(g=>g.items.length);
+    const groups=names.map(n=>({key:n,label:n,items:vis.filter(s=>(s.persona||'')===n),persona:pmap[n]})).filter(g=>g.items.length);
     const generic=vis.filter(s=>!(s.persona||''));
-    const brief=($('fy-brief')?.value||'').trim();
-    F._defOpen=(groups.find(g=>g.name===brief)||{}).name||(groups.length?groups[groups.length-1].name:'');
-    const isOpen=n=>(n in F.gpOpen)?F.gpOpen[n]:(n===F._defOpen);
-    let html='';
-    if(groups.length){
-      html=groups.map(g=>{
-        const rec=g.items.filter(s=>s.status==='recorded').length;
-        return`<div class="gp${isOpen(g.name)?' open':''}">
-          <div class="gp-h" onclick='fyGpTog(${JSON.stringify(g.name)})'>
-            <span class="nm">👤 ${esc(g.name)}</span><span class="ct">${rec}/${g.items.length} grabados</span>
-            <span class="sp"><span class="lnk" style="color:var(--r);font-size:11px" onclick='event.stopPropagation();fyRemovePersona(${JSON.stringify(g.name)})'>✕ quitar</span><span class="gp-cv">▾</span></span>
-          </div>
-          <div class="gp-b">${pdetail(pmap[g.name])}${grid(g.items)}</div>
-        </div>`;}).join('');
-      if(generic.length){
-        html+=`<div class="gp${isOpen('__generic__')?' open':''}">
-          <div class="gp-h" onclick="fyGpTog('__generic__')"><span class="nm">🌐 Genéricos</span><span class="ct">combinan con todas</span><span class="sp"><span class="gp-cv">▾</span></span></div>
-          <div class="gp-b">${grid(generic)}</div></div>`;
-      }
-    }else if(vis.length){html=grid(vis);}
-    sc.innerHTML=html?`<div style="margin-top:14px"><h5 style="font-size:11px;color:var(--t4);margin-bottom:8px">GUIONES PARA GRABAR (voz en off) — ${vis.filter(s=>s.status==='recorded').length}/${vis.length} grabados · toca una persona para abrirla</h5>${html}</div>`:'';
+    const tabs=groups.slice();
+    if(generic.length)tabs.push({key:'__generic__',label:'Genéricos',items:generic,persona:null,generic:true});
+    if(!tabs.length){sc.innerHTML='';}
+    else{
+      if(!tabs.find(t=>t.key===F.activePersona))F.activePersona=tabs[tabs.length-1].key;
+      const active=tabs.find(t=>t.key===F.activePersona);
+      const short=s=>{const w=String(s||'').split(/[\s,]+/).filter(Boolean);return (w.slice(0,2).join(' ')||s).slice(0,22);};
+      const bar=`<div class="ptabs">${tabs.map(t=>{
+        const rec=t.items.filter(x=>x.status==='recorded').length;
+        return`<div class="ptab${t.key===F.activePersona?' active':''}" title="${esc(t.generic?'Genéricos (combinan con todas)':t.label)}" onclick='fyTab(${JSON.stringify(t.key)})'>${t.generic?'🌐':'👤'} ${esc(t.generic?'Genéricos':short(t.label))} <span class="b">${rec}/${t.items.length}</span></div>`;}).join('')}</div>`;
+      const rec=active.items.filter(s=>s.status==='recorded').length;
+      const hd=`<div class="pblock-hd"><span class="nm">${active.generic?'🌐 Genéricos':'👤 '+esc(active.label)}</span><span style="font-size:12px;color:var(--t3)">${rec}/${active.items.length} grabados</span>${active.generic?'':`<span class="lnk" style="color:var(--r);font-size:11px;margin-left:auto" onclick='fyRemovePersona(${JSON.stringify(active.label)})'>✕ quitar esta persona</span>`}</div>`;
+      sc.innerHTML=`<div style="margin-top:14px"><h5 style="font-size:11px;color:var(--t4);margin-bottom:2px">GUIONES PARA GRABAR (voz en off) — trabajas una persona a la vez; toca otra pestaña para cambiar</h5>${bar}${hd}${active.generic?'':pdetail(active.persona)}${grid(active.items)}</div>`;
+    }
   }
   if(sel){
     const opts=F.scripts.filter(s=>s.type===F.form.type&&s.status==='pending');
