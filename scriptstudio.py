@@ -99,21 +99,22 @@ def _process_source(row: dict):
 
 # ─── Generación de mapa de ángulos + guiones ─────────────────────────────────
 
-def kick_generation(campaign_id: int, product_name: str, personas: list[str] | None = None):
+def kick_generation(campaign_id: int, product_name: str, brief: str = "",
+                    image_path: str | None = None):
     global _gen_running, _gen_error
     with _gen_lock:
         if _gen_running:
             return
         _gen_running = True
         _gen_error = ""
-    threading.Thread(target=_gen_worker, args=(campaign_id, product_name, personas or []),
+    threading.Thread(target=_gen_worker, args=(campaign_id, product_name, brief, image_path),
                      daemon=True).start()
 
 
-def _gen_worker(campaign_id: int, product_name: str, personas: list[str]):
+def _gen_worker(campaign_id: int, product_name: str, brief: str, image_path: str | None):
     global _gen_running, _gen_error
     try:
-        _generate(campaign_id, product_name, personas)
+        _generate(campaign_id, product_name, brief, image_path)
     except Exception as exc:
         print(f"[factory/scripts] fatal: {exc}")
         with _gen_lock:
@@ -123,7 +124,7 @@ def _gen_worker(campaign_id: int, product_name: str, personas: list[str]):
             _gen_running = False
 
 
-def _generate(campaign_id: int, product_name: str, personas: list[str]):
+def _generate(campaign_id: int, product_name: str, brief: str, image_path: str | None):
     from analyzer import build_module_scripts
 
     conn = get_conn()
@@ -132,23 +133,52 @@ def _generate(campaign_id: int, product_name: str, personas: list[str]):
         (campaign_id,),
     ).fetchall()]
     conn.close()
-    if not sources:
-        raise ValueError("No hay videos transcritos para esta campaña")
 
-    result = build_module_scripts(product_name, sources, personas)
-    persona_list = result.get("personas", [])
-    angle_map = result.get("angle_map", [])
+    result = build_module_scripts(product_name, sources, brief, image_path)
+    new_personas = result.get("personas", [])
+    new_angles = result.get("angle_map", [])
     scripts = result.get("scripts", [])
     if not scripts:
         raise ValueError("Claude no devolvió guiones — reintenta")
 
     conn = get_conn()
+    # Acumular personas/ángulos por campaña (1 persona a la vez): merge por nombre/ángulo
+    camp = conn.execute("SELECT personas, angle_map FROM factory_campaigns WHERE id=?",
+                        (campaign_id,)).fetchone()
+
+    def _load(field):
+        try:
+            return json.loads((camp[field] if camp else "") or "[]")
+        except Exception:
+            return []
+
+    personas = _load("personas")
+    by_name = {p.get("name"): i for i, p in enumerate(personas) if isinstance(p, dict)}
+    for p in new_personas:
+        if not isinstance(p, dict):
+            continue
+        if p.get("name") in by_name:
+            personas[by_name[p["name"]]] = p   # actualiza la existente
+        else:
+            personas.append(p)
+    angle_map = _load("angle_map")
+    seen = {a.get("angle") for a in angle_map if isinstance(a, dict)}
+    for a in new_angles:
+        if isinstance(a, dict) and a.get("angle") not in seen:
+            angle_map.append(a)
+            seen.add(a.get("angle"))
     conn.execute("UPDATE factory_campaigns SET angle_map=?, personas=? WHERE id=?",
                  (json.dumps(angle_map, ensure_ascii=False),
-                  json.dumps(persona_list, ensure_ascii=False), campaign_id))
-    # Regenerar reemplaza solo los pendientes; lo grabado/descartado se conserva
-    conn.execute("DELETE FROM factory_scripts WHERE campaign_id=? AND status='pending'",
-                 (campaign_id,))
+                  json.dumps(personas, ensure_ascii=False), campaign_id))
+
+    # Reemplazar SOLO los pendientes de las personas que devuelve esta generación;
+    # lo grabado/descartado y los pendientes de OTRAS personas se conservan.
+    touched = {str(s.get("persona") or "").strip() for s in scripts}
+    qmarks = ",".join("?" for _ in touched)
+    conn.execute(
+        f"DELETE FROM factory_scripts WHERE campaign_id=? AND status='pending' "
+        f"AND persona IN ({qmarks})",
+        (campaign_id, *touched))
     for s in scripts:
         stype = s.get("type")
         text = str(s.get("text") or "").strip()

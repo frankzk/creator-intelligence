@@ -653,7 +653,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{}};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',advOpen:false};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -674,6 +674,12 @@ async function loadCamps(){
   F.camps=await api('GET','/api/factory/campaigns');
   if(!F.camps.find(c=>c.id===F.camp))F.camp=F.camps[0]?.id||null;
   if(F.camp)localStorage.setItem('fy_camp',F.camp);
+  fySyncPhoto();
+}
+function fySyncPhoto(){
+  const c=F.camps.find(x=>x.id===F.camp);
+  F.prodImg=c&&c.product_image?c.product_image:'';
+  F.prodImgU=F.prodImg?('/uploads/'+F.prodImg):'';
 }
 
 async function loadFactory(){
@@ -713,6 +719,7 @@ function fySelCamp(id){
   F.camp=+id;localStorage.setItem('fy_camp',F.camp);F.manual=null;
   const c=F.camps.find(x=>x.id===F.camp);
   if(c){F.prod=c.name;localStorage.setItem('fy_prod',c.name);}
+  fySyncPhoto();
   renderFyForm();loadFactory();
 }
 
@@ -741,19 +748,33 @@ function renderFyForm(){
     return;
   }
 
+  const photoBox=F.prodImgU
+    ? `<img class="upimg" src="${esc(F.prodImgU)}">`
+    : `<div style="font-size:26px;margin-bottom:4px">🖼</div><div style="font-size:12px;color:var(--t3)">Subir foto del producto</div>`;
   const paso1=`
-    <div class="fy-row">
-      <div class="fg"><label class="fl">Links de videos que están vendiendo el producto (uno por línea)</label>
-        <textarea class="fi" id="fy-rl" rows="2" style="resize:vertical;font-family:inherit" placeholder="https://www.tiktok.com/@creador/video/123..."></textarea></div>
-      <button class="abtn" style="align-self:flex-end" onclick="fyAddResearch()">Transcribir</button>
+    <div class="fy-row" style="align-items:stretch">
+      <div class="fg" style="max-width:210px;flex:none"><label class="fl">Foto del producto *</label>
+        <div class="upa" style="padding:14px" onclick="$('fy-photo').click()">
+          <input type="file" id="fy-photo" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="fyUploadPhoto(event)">
+          ${photoBox}
+        </div></div>
+      <div class="fg">
+        <label class="fl">Buyer persona o ángulo (opcional)</label>
+        <input class="fi" id="fy-brief" placeholder="ej. mamá postparto · conquistar a una mujer · regalo para mamá">
+        <div class="fy-hint" style="margin-top:8px">La IA reconoce el producto en la foto y escribe los guiones. Escribe opcionalmente a quién le hablas o el ángulo. <b>Trabajas un buyer persona a la vez — cada generación se suma a las anteriores.</b></div>
+        <button class="gbtn" style="width:auto;margin:10px 0 0;padding:10px 24px" id="fy-gensc" onclick="fyGenScripts()">✨ Generar guiones</button>
+      </div>
     </div>
-    <div class="fy-row" style="margin-top:10px">
-      <div class="fg"><label class="fl">Buyer personas (opcional, uno por línea — vacío = la IA los propone)</label>
-        <textarea class="fi" id="fy-personas" rows="2" style="resize:vertical;font-family:inherit" placeholder="ej. mamá postparto con caída de pelo&#10;mujer 40+ con pelo debilitado"></textarea></div>
-      <button class="gbtn" style="width:auto;margin:0 0 1px;padding:9px 18px;align-self:flex-end" id="fy-gensc" onclick="fyGenScripts()">✨ Generar guiones</button>
+    <div style="margin-top:14px"><span class="lnk" id="fy-advlnk" onclick="fyToggleAdv()">${F.advOpen?'▾':'▸'} añadir videos ganadores como contexto (opcional)</span></div>
+    <div id="fy-adv" style="display:${F.advOpen?'block':'none'};margin-top:8px">
+      <div class="fy-row">
+        <div class="fg"><label class="fl">Links de videos que están vendiendo el producto (uno por línea)</label>
+          <textarea class="fi" id="fy-rl" rows="2" style="resize:vertical;font-family:inherit" placeholder="https://www.tiktok.com/@creador/video/123..."></textarea></div>
+        <button class="abtn" style="align-self:flex-end" onclick="fyAddResearch()">Transcribir</button>
+      </div>
+      <div class="fy-hint">Pega 5–10 videos ganadores (de tu análisis de Kalodata): sus transcripciones le dan a la IA ángulos ya probados. Si un link falla, pega la transcripción a mano.</div>
+      <div id="fy-research" style="margin-top:10px"></div>
     </div>
-    <div class="fy-hint">Pega 5–10 videos ganadores (de tu análisis de Kalodata) → la IA define los <b>buyer personas</b> y escribe guiones por persona, listos para leer como voz en off. En un video nunca se mezclan audiencias.</div>
-    <div id="fy-research" style="margin-top:10px"></div>
     <div id="fy-angles"></div>
     <div id="fy-scripts"></div>`;
 
@@ -865,12 +886,28 @@ async function fyShowTr(id){
   }
   renderFyStudio();
 }
+async function fyUploadPhoto(e){
+  const file=e.target.files[0];if(!file)return;
+  const fd=new FormData();fd.append('file',file);
+  const brief=$('fy-brief')?.value||'';
+  try{
+    const r=await fetch('/api/upload',{method:'POST',body:fd});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Error');
+    F.prodImg=d.filename;F.prodImgU=d.url;renderFyForm();
+    const bi=$('fy-brief');if(bi)bi.value=brief;
+  }catch(err){alert('Error subiendo foto: '+err.message);}
+}
+function fyToggleAdv(){
+  F.advOpen=!F.advOpen;
+  const e=$('fy-adv');if(e)e.style.display=F.advOpen?'block':'none';
+  const l=$('fy-advlnk');if(l)l.textContent=(F.advOpen?'▾':'▸')+' añadir videos ganadores como contexto (opcional)';
+}
 async function fyGenScripts(){
   if(!F.camp)return;
-  const n=F.research.filter(r=>r.status==='done').length;
-  if(!n){alert('Primero transcribe al menos un video ganador');return;}
-  const personas=($('fy-personas')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  try{await api('POST','/api/factory/scripts/generate',{campaign_id:F.camp,product_name:F.prod,personas});await loadFactory();}
+  const hasVids=F.research.filter(r=>r.status==='done').length;
+  if(!F.prodImg&&!hasVids){alert('Sube la foto del producto para generar guiones');return;}
+  const brief=($('fy-brief')?.value||'').trim();
+  try{await api('POST','/api/factory/scripts/generate',{campaign_id:F.camp,product_name:F.prod,brief,image_filename:F.prodImg||''});await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyScriptSt(id,st){
@@ -1050,7 +1087,7 @@ function fySummaries(hasMetrics){
   const pend=F.scripts.filter(s=>s.status==='pending').length;
   const rec=F.scripts.filter(s=>s.status==='recorded').length;
   const sum1=F.scripts.length?`${pend} por grabar · ${rec} grabados`
-    :(F.research.some(r=>r.status==='done')?'videos transcritos — genera los guiones':'empieza aquí');
+    :(F.prodImg?'foto lista — genera los guiones':'sube la foto del producto');
   const readyM=F.mods.filter(m=>m.status==='ready').length;
   const missing=['hook','body','cta'].filter(t=>!F.mods.some(m=>m.type===t&&m.status==='ready'));
   const sum2=F.mods.length?`${readyM}/${F.mods.length} listos${missing.length?' · faltan: '+missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', '):''}`:'sin módulos aún';
@@ -1062,7 +1099,7 @@ function fySummaries(hasMetrics){
 
   const nx=fyNextStep();
   const msgs={
-    1:'Pega los links de videos que ya venden el producto y genera tus guiones por buyer persona',
+    1:'Sube la foto del producto y genera tus guiones (opcional: a quién le hablas o el ángulo)',
     2:missing.length&&F.mods.length?`Graba y sube lo que falta: ${missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', ')}`:'Graba los guiones pendientes y súbelos enlazados a su guion',
     3:'Tus módulos están listos — presiona ⚡ Generar combinaciones',
     4:`Publica la cola de hoy (${F.queue.length} video${F.queue.length===1?'':'s'} con caption listo)`,

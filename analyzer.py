@@ -273,66 +273,92 @@ def get_global_insights(all_creators: list[dict]) -> dict:
 
 # ─── FACTORY: ESTUDIO DE GUIONES ─────────────────────────────────────────────
 
-def build_module_scripts(product_name: str, sources: list[dict],
-                         personas: list[str] | None = None) -> dict:
-    """Buyer personas + mapa de ángulos + guiones modulares POR PERSONA, a partir
-    de transcripciones de videos que YA venden el producto.
-    La regla de oro: las piezas solo se combinan dentro de la misma persona —
-    no se le puede hablar a dos buyer personas en el mismo video.
-    Devuelve {"personas": [...], "angle_map": [...], "scripts": [...]}."""
+TIKTOK_METHODOLOGY = """METODOLOGÍA DE GUION TIKTOK SHOP (aplícala):
+ESTILO (todas las piezas): frases cortas de 5-8 palabras, ritmo ágil; "tú invisible"
+(háblale a UNA sola persona, 1-a-1); tono conversacional y auténtico, como recomendando a
+un amigo; entusiasmo natural, SIN venta agresiva ni gritos. EVITA aperturas y frases
+genéricas de IA que "todos usan" — suena distinto a los demás.
+HOOKS (0-3s): rompe el patrón + gancho negativo/intriga; apunta a un dolor, error común o
+resultado deseado ("¿Cansada de que tu piel se vea opaca?", "Estás usando X mal y por eso Y").
+NO presentes el producto todavía.
+CUERPOS (varía la estructura entre ellos):
+ · "Doble Caída" (efecto Zeigarnik): problema → primera solución rápida → segundo problema o
+   detalle crítico que no consideraban → producto como solución definitiva.
+ · Fórmula directa (estilo Flor de Cuba): problema con empatía → la solución (producto) →
+   demostración y beneficios → por qué funciona.
+ · Demostración / prueba social: muestra el producto en acción y resultados reales.
+ En todos: "zoom en descripciones" (qué se SIENTE o qué problema específico elimina;
+ BENEFICIOS, no características). Vende resolviendo problemas.
+CTAs (4-8s): instrucción de compra clara y natural; menciona tocar la canasta naranja.
+"""
+
+
+def build_module_scripts(product_name: str, sources: list[dict] | None = None,
+                         brief: str = "", image_path: str | None = None) -> dict:
+    """Guiones modulares para UN buyer persona, a partir de la FOTO del producto
+    (visión) y, opcionalmente, un texto de foco (avatar/ángulo) y transcripciones
+    de videos que ya venden. El usuario trabaja una persona a la vez y acumula.
+    Devuelve {"personas": [...1...], "angle_map": [...], "scripts": [...]}."""
+    sources = sources or []
     blocks = []
     for i, s in enumerate(sources[:12], 1):
         note = str(s.get("notes") or "").strip()
         head = f"VIDEO {i}" + (f" ({note[:100]})" if note else "")
         blocks.append(f"{head}:\n{_safe(s.get('transcript'), 900)}")
 
-    given = [p.strip() for p in (personas or []) if p.strip()]
-    if given:
+    brief = (brief or "").strip()
+    if brief:
         persona_task = (
-            "TAREA 1 — Buyer personas: usa EXACTAMENTE estos (no inventes otros), "
-            "y complétales dolor principal, deseo y objeción típica a partir de los videos:\n"
-            + "\n".join(f"- {p}" for p in given[:4])
+            f"TAREA 1 — Buyer persona: trabaja UN SOLO buyer persona/ángulo definido por: "
+            f"«{brief[:200]}». Si es un avatar, complétale dolor principal, deseo y objeción "
+            "típica. Si es un ángulo de venta, construye el avatar más probable alrededor de "
+            "ese ángulo. Devuelve exactamente 1 persona."
         )
     else:
         persona_task = (
-            "TAREA 1 — Buyer personas: identifica los 2 (máximo 3) buyer personas "
-            "distintos a los que estos videos les venden (ej. 'mamá postparto con caída "
-            "de pelo' vs 'mujer 40+ con pelo debilitado'). Para cada uno: dolor "
-            "principal, deseo y objeción típica."
+            "TAREA 1 — Buyer persona: identifica UN (1) buyer persona, el más probable y "
+            "rentable para este producto. Para él: dolor principal, deseo y objeción típica."
         )
 
+    if blocks:
+        ctx = ("Transcripciones de videos que YA están vendiendo este producto (úsalas como "
+               "evidencia de qué ángulos convierten):\n\n" + "\n---\n".join(blocks) + "\n\n")
+    else:
+        ctx = ("No hay transcripciones de referencia: apóyate en la FOTO del producto y en tu "
+               "conocimiento de qué vende en TikTok Shop.\n\n")
+
     prompt = (
-        f"Producto: {_safe(product_name, 80)}. Audiencia: hispanos en USA "
-        "(TikTok Shop, video en español, voz en off sobre b-roll).\n\n"
-        "Transcripciones de videos que YA están vendiendo este producto:\n\n"
-        + "\n---\n".join(blocks)
+        f"Pista del nombre/marca: {_safe(product_name, 80)}. Audiencia: hispanos en USA "
+        "(TikTok Shop, video en español, voz en off sobre b-roll).\n"
+        "Identifica el PRODUCTO y su beneficio principal mirando la FOTO; el nombre de arriba "
+        "es solo una pista (puede ser una marca, no descriptivo).\n\n"
+        + ctx
+        + TIKTOK_METHODOLOGY
         + f"""
 
 {persona_task}
 
-TAREA 2 — Mapa de ángulos: los 4-6 ángulos de venta que estos videos explotan,
-con su evidencia y la fórmula de hook que usan.
+TAREA 2 — Mapa de ángulos: 4-6 ángulos de venta para este persona/producto, con su evidencia
+(de los videos si los hay, o tu razonamiento) y la fórmula de hook que usan.
 
-TAREA 3 — Guiones modulares para grabar como VOZ EN OFF, organizados POR PERSONA.
-Para CADA buyer persona exactamente:
-- 3 hooks (3-6s, 10-16 palabras), con ángulos DIFERENTES entre sí
-- 2 cuerpos (15-25s, 40-65 palabras), argumento con beneficios/prueba
-- 2 CTAs (4-8s, 12-22 palabras), siempre mencionan tocar la canasta naranja
-Si un CTA sirve igual para TODAS las personas (urgencia/oferta pura, sin mencionar
-el dolor de nadie), márcalo con persona "" — máximo 1 genérico en total.
+TAREA 3 — Guiones modulares para grabar como VOZ EN OFF, para ESE ÚNICO buyer persona:
+- 5 hooks (3-6s, 10-16 palabras), cada uno con un ángulo DIFERENTE (aplica metodología de HOOKS)
+- 3 cuerpos (15-25s, 40-65 palabras), VARÍA la estructura entre ellos: uno "Doble Caída",
+  uno fórmula directa estilo Flor de Cuba, uno demostración/prueba social (ver metodología)
+- 3 CTAs (4-8s, 12-22 palabras), mencionan tocar la canasta naranja
+Si UN CTA sirve igual para cualquier persona (urgencia/oferta pura, sin mencionar el dolor de
+nadie), márcalo con persona "" — máximo 1 genérico.
 
-REGLAS DE COMBINABILIDAD (crítico — los módulos se combinan al azar DENTRO de
-cada persona; NUNCA se mezclan personas en un video):
-- Todas las piezas de una persona hablan al MISMO "tú": mismo dolor, misma promesa,
-  mismo registro. Cualquier hook + cuerpo + CTA de esa persona debe fluir natural.
-- Cada módulo es autocontenido: PROHIBIDO referirse a otro módulo ("como te decía").
-  El cuerpo no saluda ni abre tema: entra directo al argumento.
+REGLAS DE COMBINABILIDAD (crítico — los módulos se combinan al azar DENTRO del persona):
+- Todas las piezas del persona hablan al MISMO "tú": mismo dolor, misma promesa, mismo registro.
+  Cualquier hook + cuerpo + CTA debe fluir natural al pegarse.
+- Cada módulo es autocontenido: PROHIBIDO referirse a otro ("como te decía"). El cuerpo no
+  saluda ni abre tema: entra directo al argumento.
 - text: lenguaje hablado natural, sin emojis ni acotaciones de cámara.
 - overlay_text: texto en pantalla, máx 7 palabras, estilo TikTok (puede llevar 1 emoji);
   obligatorio en hooks, opcional en cuerpos/CTAs (déjalo "" si no aporta).
 - est_seconds: palabras ÷ 2.6, redondeado a 1 decimal.
-- El campo "persona" de cada guion debe coincidir LETRA POR LETRA con el nombre
-  del buyer persona (o "" si es genérico).
+- El campo "persona" de cada guion = el nombre EXACTO del buyer persona (o "" si es genérico).
 
 Devuelve SOLO JSON:
 {{
@@ -346,8 +372,22 @@ Devuelve SOLO JSON:
 }}"""
     )
 
+    # Visión: si hay foto, va como bloque de imagen (mismo patrón que generate_scripts)
+    if image_path and os.path.exists(image_path):
+        ext = Path(image_path).suffix.lower()
+        media_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+        media_type = media_map.get(ext, "image/jpeg")
+        with open(image_path, "rb") as f:
+            img_b64 = base64.standard_b64encode(f.read()).decode()
+        user_content = [
+            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": img_b64}},
+            {"type": "text", "text": "Esta es la FOTO del producto.\n\n" + prompt},
+        ]
+    else:
+        user_content = prompt
+
     result = _parse_json(_call(
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": user_content}],
         system="Eres estratega de creativos TikTok Shop para el mercado hispano de USA. "
                "Respondes SOLO con JSON válido.",
         max_tokens=8000,

@@ -471,20 +471,40 @@ async def factory_delete_research(research_id: int):
 class ScriptsGenRequest(BaseModel):
     campaign_id: int
     product_name: str = ""
-    personas: list[str] = []   # vacío = la IA los propone del análisis
+    brief: str = ""              # avatar/ángulo opcional (1 buyer persona a la vez)
+    image_filename: str = ""     # foto del producto (de /api/upload)
 
 
 @app.post("/api/factory/scripts/generate")
 async def factory_generate_scripts(req: ScriptsGenRequest):
     conn = get_conn()
+    camp = conn.execute("SELECT product_image FROM factory_campaigns WHERE id=?",
+                        (req.campaign_id,)).fetchone()
+    if not camp:
+        conn.close()
+        raise HTTPException(400, "Campaña inexistente")
     n = conn.execute(
         "SELECT COUNT(*) AS n FROM factory_research WHERE campaign_id=? AND status='done'",
         (req.campaign_id,)).fetchone()["n"]
+
+    # Resolver la foto: la recién subida o la guardada en la campaña
+    image_name = (req.image_filename or "").strip() or (camp["product_image"] or "")
+    image_path = None
+    if image_name:
+        candidate = os.path.join("uploads", image_name)
+        if os.path.exists(candidate):
+            image_path = candidate
+    if req.image_filename.strip():
+        conn.execute("UPDATE factory_campaigns SET product_image=? WHERE id=?",
+                     (req.image_filename.strip(), req.campaign_id))
+        conn.commit()
     conn.close()
-    if not n:
-        raise HTTPException(400, "Primero transcribe al menos un video ganador (o pega una transcripción)")
-    ss.kick_generation(req.campaign_id, req.product_name, req.personas)
-    return {"status": "generating", "sources": n}
+
+    if not image_path and not n:
+        raise HTTPException(400, "Sube la foto del producto para generar guiones")
+
+    ss.kick_generation(req.campaign_id, req.product_name, req.brief, image_path)
+    return {"status": "generating", "sources": n, "has_image": bool(image_path)}
 
 
 @app.get("/api/factory/scripts")
