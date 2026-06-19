@@ -71,6 +71,22 @@ creator-intelligence/
 └── uploads/         # Fotos de productos subidas
 ```
 
+## Tests
+
+El proyecto sigue los criterios de calidad de [ECC](https://github.com/affaan-m/ECC)
+(ver `.claude/rules/ecc/`). Para ejecutar la suite:
+
+```bash
+pip install -r requirements-dev.txt
+pytest                                   # toda la suite
+pytest --cov=validation --cov=database --cov-report=term-missing
+```
+
+- **Unit** (`@pytest.mark.unit`): validación de inputs (`validation.py`) y
+  helpers puros de análisis (`analyzer.py`).
+- **Integration** (`@pytest.mark.integration`): capa de datos SQLite
+  (`database.py`) sobre una base temporal aislada.
+
 ## Notas técnicas
 
 - Base de datos SQLite local: `database.db`

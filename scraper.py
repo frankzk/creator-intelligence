@@ -133,10 +133,3 @@ def download_video_audio(video_url: str, output_dir: str) -> str:
         raise FileNotFoundError(f"Audio file not found for video {video_id}")
 
     return mp3_path
-
-
-def extract_username_from_url(url: str) -> str:
-    """Extract @username from a TikTok profile URL."""
-    url = url.rstrip("/")
-    part = url.split("/")[-1]
-    return part.lstrip("@")
