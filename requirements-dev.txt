@@ -1,0 +1,6 @@
+# Dependencias de desarrollo y testing.
+# Instalar con: pip install -r requirements-dev.txt
+-r requirements.txt
+
+pytest==8.3.4
+pytest-cov==6.0.0

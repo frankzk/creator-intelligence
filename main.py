@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -9,6 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -16,24 +18,50 @@ from pydantic import BaseModel
 from database import (
     get_conn, get_creator_existing_ids, init_db, upsert_creator_analysis
 )
-from scraper import (
-    download_video_audio, extract_username_from_url, scrape_profile_metadata
-)
+from scraper import download_video_audio, scrape_profile_metadata
 from transcriber import transcribe_and_cleanup
 from analyzer import (
     analyze_creator_dna, analyze_product_patterns, analyze_product_video,
     classify_hook_type, generate_scripts, get_global_insights,
 )
 from kalodata import scrape_kalodata_sync
+from validation import (
+    MAX_PROFILE_VIDEOS, MAX_UPLOAD_BYTES, extract_username_from_url,
+    is_allowed_image, safe_upload_path, validate_keyword, validate_script_mode,
+    validate_script_quantity, validate_tiktok_url,
+)
 
 # ─── Init ─────────────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("creator_intelligence")
 
 Path("uploads").mkdir(exist_ok=True)
 Path("temp_audio").mkdir(exist_ok=True)
 
+if not os.getenv("ANTHROPIC_API_KEY"):
+    # Validate required secrets at startup; warn rather than crash so the UI
+    # still loads for read-only browsing.
+    logger.warning("ANTHROPIC_API_KEY no está definida; el análisis con IA fallará.")
+
 init_db()
 
 app = FastAPI(title="Creator Intelligence", version="1.0.0")
+
+# Environment-specific CORS. No credentials are used, so origins stay explicit
+# and we never combine a wildcard with credentialed requests.
+_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
@@ -79,7 +107,10 @@ async def list_creators():
 
 @app.post("/api/creators")
 async def add_creator(req: AddCreatorRequest, background_tasks: BackgroundTasks):
-    url = req.url.strip()
+    try:
+        url = validate_tiktok_url(req.url)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     username = extract_username_from_url(url)
     display_name = req.display_name.strip() or username
 
@@ -201,7 +232,10 @@ async def list_products():
 
 @app.post("/api/products/search")
 async def search_product(req: SearchProductRequest, background_tasks: BackgroundTasks):
-    keyword = req.keyword.strip()
+    try:
+        keyword = validate_keyword(req.keyword)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     conn = get_conn()
     conn.execute("INSERT INTO products (keyword, status) VALUES (?, 'scraping')", (keyword,))
     conn.commit()
@@ -255,6 +289,12 @@ class GenerateScriptsRequest(BaseModel):
 
 @app.post("/api/scripts/generate")
 async def generate_scripts_endpoint(req: GenerateScriptsRequest):
+    try:
+        mode = validate_script_mode(req.mode)
+        quantity = validate_script_quantity(req.quantity)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
     conn = get_conn()
 
     creators_data = []
@@ -284,11 +324,9 @@ async def generate_scripts_endpoint(req: GenerateScriptsRequest):
 
     conn.close()
 
-    image_path = None
-    if req.image_filename:
-        candidate = os.path.join("uploads", req.image_filename)
-        if os.path.exists(candidate):
-            image_path = candidate
+    # Resolve the upload safely — guards against path traversal in image_filename.
+    safe_path = safe_upload_path(req.image_filename)
+    image_path = str(safe_path) if safe_path else None
 
     # Run blocking Anthropic call in a thread so the event loop stays free.
     scripts = await asyncio.to_thread(
@@ -297,8 +335,8 @@ async def generate_scripts_endpoint(req: GenerateScriptsRequest):
         req.benefit or "",
         creators_data,
         products_data,
-        req.mode,
-        req.quantity,
+        mode,
+        quantity,
         image_path,
     )
     return {"scripts": scripts}
@@ -308,13 +346,19 @@ async def generate_scripts_endpoint(req: GenerateScriptsRequest):
 
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...)):
-    ext = Path(file.filename or "").suffix.lower()
-    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+    if not is_allowed_image(file.filename):
         raise HTTPException(400, "Solo se aceptan imágenes JPG, PNG o WebP.")
+
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "La imagen supera el tamaño máximo permitido.")
+
+    ext = Path(file.filename or "").suffix.lower()
+    # Server-generated UUID name avoids any client-controlled path.
     filename = f"{uuid.uuid4()}{ext}"
     filepath = os.path.join("uploads", filename)
     with open(filepath, "wb") as f:
-        f.write(await file.read())
+        f.write(data)
     return {"filename": filename, "url": f"/uploads/{filename}"}
 
 
@@ -367,7 +411,7 @@ def _sync_analyze_creator(creator_id: int, url: str, username: str, incremental:
         _set_creator_status(creator_id, "scraping", "Extrayendo videos...")
 
         existing_ids = get_creator_existing_ids(creator_id) if incremental else set()
-        videos_meta = scrape_profile_metadata(url, max_videos=25)
+        videos_meta = scrape_profile_metadata(url, max_videos=MAX_PROFILE_VIDEOS)
         new_videos = [v for v in videos_meta if v["tiktok_id"] not in existing_ids]
 
         if incremental and not new_videos:
@@ -393,8 +437,8 @@ def _sync_analyze_creator(creator_id: int, url: str, username: str, incremental:
                 ))
                 conn.commit()
                 v["transcript"] = transcript
-            except Exception as exc:
-                print(f"[creator/{username}] video error: {exc}")
+            except Exception:
+                logger.exception("creator/%s: error procesando video", username)
 
         _set_creator_status(creator_id, "analyzing", "Analizando ADN...")
 
@@ -415,7 +459,7 @@ def _sync_analyze_creator(creator_id: int, url: str, username: str, incremental:
             _set_creator_status(creator_id, "done", "Sin videos")
 
     except Exception as exc:
-        print(f"[creator/{username}] fatal: {exc}")
+        logger.exception("creator/%s: fallo fatal", username)
         _set_creator_status(creator_id, "error", f"Error: {str(exc)[:80]}")
     finally:
         conn.close()
@@ -454,8 +498,8 @@ def _sync_analyze_product(product_id: int, keyword: str):
                 v["transcript"] = transcript
                 v["why_it_converts"] = why
                 transcribed.append(v)
-            except Exception as exc:
-                print(f"[product/{keyword}] video error: {exc}")
+            except Exception:
+                logger.exception("product/%s: error procesando video", keyword)
 
         if transcribed:
             patterns = analyze_product_patterns(transcribed)
@@ -474,8 +518,8 @@ def _sync_analyze_product(product_id: int, keyword: str):
             conn.execute("UPDATE products SET status='done' WHERE id=?", (product_id,))
         conn.commit()
 
-    except Exception as exc:
-        print(f"[product/{keyword}] fatal: {exc}")
+    except Exception:
+        logger.exception("product/%s: fallo fatal", keyword)
         conn.execute("UPDATE products SET status='error' WHERE id=?", (product_id,))
         conn.commit()
     finally:
