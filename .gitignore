@@ -9,3 +9,4 @@ factory/
 render/node_modules/
 render/public/inputs/*
 !render/public/inputs/.gitkeep
+backups/
