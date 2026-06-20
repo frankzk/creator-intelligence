@@ -177,6 +177,8 @@ def init_db():
         conn.execute("ALTER TABLE factory_campaigns ADD COLUMN personas TEXT DEFAULT '[]'")
     if "product_image" not in camp_cols:
         conn.execute("ALTER TABLE factory_campaigns ADD COLUMN product_image TEXT DEFAULT ''")
+    if "product_images" not in camp_cols:
+        conn.execute("ALTER TABLE factory_campaigns ADD COLUMN product_images TEXT DEFAULT '[]'")
     if "persona_candidates" not in camp_cols:
         conn.execute("ALTER TABLE factory_campaigns ADD COLUMN persona_candidates TEXT DEFAULT '[]'")
     script_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_scripts)").fetchall()}

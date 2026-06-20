@@ -373,7 +373,8 @@ async def factory_campaign_from_photo(req: CampaignFromPhoto):
     while conn.execute("SELECT id FROM factory_campaigns WHERE name=?", (name,)).fetchone():
         name = f"{base} {i}"
         i += 1
-    conn.execute("INSERT INTO factory_campaigns (name, product_image) VALUES (?,?)", (name, fn))
+    conn.execute("INSERT INTO factory_campaigns (name, product_image, product_images) VALUES (?,?,?)",
+                 (name, fn, json.dumps([fn])))
     conn.commit()
     row = conn.execute("SELECT * FROM factory_campaigns WHERE name=?", (name,)).fetchone()
     conn.close()
@@ -402,6 +403,7 @@ async def factory_create_campaign(req: CampaignRequest):
 class CampaignPatch(BaseModel):
     status: Optional[str] = None
     name: Optional[str] = None
+    product_image: Optional[str] = None   # foto activa (se añade a la galería)
 
 
 @app.patch("/api/factory/campaigns/{campaign_id}")
@@ -413,6 +415,18 @@ async def factory_patch_campaign(campaign_id: int, req: CampaignPatch):
     if req.name and req.name.strip():
         conn.execute("UPDATE factory_campaigns SET name=? WHERE id=?",
                      (req.name.strip(), campaign_id))
+    if req.product_image and req.product_image.strip():
+        pi = req.product_image.strip()
+        row = conn.execute("SELECT product_images FROM factory_campaigns WHERE id=?",
+                           (campaign_id,)).fetchone()
+        try:
+            gal = json.loads((row["product_images"] if row else "") or "[]")
+        except Exception:
+            gal = []
+        if pi not in gal:
+            gal.append(pi)
+        conn.execute("UPDATE factory_campaigns SET product_image=?, product_images=? WHERE id=?",
+                     (pi, json.dumps(gal, ensure_ascii=False), campaign_id))
     conn.commit()
     conn.close()
     return {"status": "ok"}
