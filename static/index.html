@@ -719,8 +719,18 @@ function fySyncPhoto(){
   let gal=[];try{gal=JSON.parse((c&&c.product_images)||'[]');}catch(e){}
   if(F.prodImg&&!gal.includes(F.prodImg))gal.unshift(F.prodImg);
   F.prodImgs=gal;
-  F.activePersona='';  // al cambiar de campaña, empieza en la última persona
+  // la persona activa filtra TODO el embudo; se recuerda por campaña
+  F.activePersona=F.camp?(localStorage.getItem('fy_persona_'+F.camp)||''):'';
 }
+function fySetPersona(key){F.activePersona=key||'';if(F.camp)localStorage.setItem('fy_persona_'+F.camp,F.activePersona);}
+function fyShort(s){const w=String(s||'').split(/[\s,]+/).filter(Boolean);return (w.slice(0,2).join(' ')||s||'').slice(0,22);}
+// '__none__' = material sin persona (legado). Se distingue del '' = "aún sin elegir".
+function fyEffPersona(){return F.activePersona==='__none__'?'':(F.activePersona||'');}
+function fyPersonaLabel(){return F.activePersona==='__none__'?'Sin persona':(F.activePersona||'Sin persona');}
+// La persona activa es el filtro maestro: módulos, combos, guiones y métricas
+function sList(arr){const k=fyEffPersona();return (arr||[]).filter(x=>(x.persona||'')===k);}
+function sQueue(){return sList(F.combos).filter(c=>c.status==='ready'&&!c.published_at)
+  .sort((a,b)=>((b.score==null?-1:b.score)-(a.score==null?-1:a.score))).slice(0,6);}
 async function fyPickPhoto(fn){
   if(!F.camp||fn===F.prodImg)return;
   try{await api('PATCH','/api/factory/campaigns/'+F.camp,{product_image:fn});await loadCamps();renderFyForm();await loadFactory();}
@@ -731,13 +741,13 @@ async function loadFactory(){
   if(!F.camp){renderFyLists();return;}
   try{
     const q=`campaign_id=${F.camp}`;
-    const[mods,combos,queue,status,attr,research,sc]=await Promise.all([
+    const[mods,combos,status,attr,research,sc]=await Promise.all([
       api('GET',`/api/factory/modules?${q}`),api('GET',`/api/factory/combos?${q}`),
-      api('GET',`/api/factory/queue?n=6&${q}`),api('GET','/api/factory/status'),
+      api('GET','/api/factory/status'),
       api('GET',`/api/factory/attribution?${q}`),api('GET',`/api/factory/research?${q}`),
       api('GET',`/api/factory/scripts?${q}`)
     ]);
-    F.mods=mods;F.combos=combos;F.queue=queue;F.status=status;F.attr=attr;
+    F.mods=mods;F.combos=combos;F.status=status;F.attr=attr;
     F.research=research;F.scripts=sc.scripts||[];F.angles=sc.angle_map||[];F.personas=sc.personas||[];F.personaCandidates=sc.persona_candidates||[];
     renderFyLists();
   }catch(e){$('fy-lists').innerHTML=`<p style="color:var(--r)">${esc(e.message)}</p>`;}
@@ -815,28 +825,31 @@ function renderFyForm(){
           ${photoBox}
         </div>${thumbs}</div>
       <div class="fg">
-        <label class="fl">Buyer persona o ángulo (opcional)</label>
+        <label class="fl">Nuevo buyer persona o ángulo (opcional)</label>
         <input class="fi" id="fy-brief" placeholder="ej. mamá postparto · conquistar a una mujer · regalo para mamá">
-        <div class="fy-hint" style="margin-top:8px">La IA reconoce el producto en la foto y escribe los guiones. Escribe a quién le hablas, o deja que la IA <b>investigue</b> el buyer persona de voces reales. <b>Trabajas uno a la vez — cada generación se suma a las anteriores.</b></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <div class="fy-hint" style="margin-top:8px">La IA ve el producto en la foto y escribe los guiones para <b>una</b> persona. Escribe a quién le hablas (se crea esa persona) o déjalo vacío y la IA elige la más rentable. Cada generación <b>añade</b> una persona a la barra de arriba — trabajas una a la vez.</div>
+        <div style="margin-top:10px">
           <button class="gbtn" style="width:auto;margin:0;padding:10px 24px" id="fy-gensc" onclick="fyGenScripts()">✨ Generar guiones</button>
-          <button class="abtn" id="fy-research-btn" onclick="fyResearchPersonas()">🔍 Investigar buyer persona</button>
         </div>
       </div>
     </div>
-    <div id="fy-personacands"></div>
-    <div style="margin-top:14px"><span class="lnk" id="fy-advlnk" onclick="fyToggleAdv()">${F.advOpen?'▾':'▸'} añadir videos ganadores como contexto (opcional)</span></div>
-    <div id="fy-adv" style="display:${F.advOpen?'block':'none'};margin-top:8px">
+    <div id="fy-scripts"></div>
+    <div style="margin-top:14px"><span class="lnk" id="fy-advlnk" onclick="fyToggleAdv()">${F.advOpen?'▾':'▸'} avanzado — investigar persona · videos ganadores · mapa de ángulos</span></div>
+    <div id="fy-adv" style="display:${F.advOpen?'block':'none'};margin-top:10px">
       <div class="fy-row">
+        <button class="abtn" id="fy-research-btn" onclick="fyResearchPersonas()">🔍 Investigar buyer persona (web)</button>
+        <div class="fy-hint" style="flex:1;margin-top:0">La IA busca voces reales (Reddit, reseñas de Amazon) y propone 2-3 personas; eliges una y generas.</div>
+      </div>
+      <div id="fy-personacands"></div>
+      <div class="fy-row" style="margin-top:12px">
         <div class="fg"><label class="fl">Links de videos que están vendiendo el producto (uno por línea)</label>
           <textarea class="fi" id="fy-rl" rows="2" style="resize:vertical;font-family:inherit" placeholder="https://www.tiktok.com/@creador/video/123..."></textarea></div>
         <button class="abtn" style="align-self:flex-end" onclick="fyAddResearch()">Transcribir</button>
       </div>
       <div class="fy-hint">Pega 5–10 videos ganadores (de tu análisis de Kalodata): sus transcripciones le dan a la IA ángulos ya probados. Si un link falla, pega la transcripción a mano.</div>
       <div id="fy-research" style="margin-top:10px"></div>
-    </div>
-    <div id="fy-angles"></div>
-    <div id="fy-scripts"></div>`;
+      <div id="fy-angles" style="margin-top:10px"></div>
+    </div>`;
 
   const paso2=`
     <div class="fy-row">
@@ -844,17 +857,15 @@ function renderFyForm(){
         <select class="fi" id="fy-type" onchange="F.form.type=this.value;F.form.script='';renderFyLists()">
           <option value="hook">Hook</option><option value="body">Cuerpo</option><option value="cta">CTA</option>
         </select></div>
-      <div class="fg" style="max-width:240px"><label class="fl">Guion que grabaste</label>
+      <div class="fg" style="max-width:300px"><label class="fl">Guion que grabaste</label>
         <select class="fi" id="fy-script" onchange="F.form.script=this.value"><option value="">— sin guion —</option></select></div>
       <div class="fg"><label class="fl">Texto en pantalla</label>
         <input class="fi" id="fy-ov" placeholder="vacío = usa el del guion" value="${esc(f.overlay)}" oninput="F.form.overlay=this.value"></div>
-      <div class="fg" style="max-width:140px"><label class="fl">Tags (opcional)</label>
-        <input class="fi" id="fy-tags" placeholder="ej. shampoo" value="${esc(f.tags)}" oninput="F.form.tags=this.value"></div>
       <div class="fg" style="max-width:220px"><label class="fl">Video(s)</label>
         <input class="fi" type="file" id="fy-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv" multiple></div>
       <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" id="fy-up" onclick="fyUpload()">Subir</button>
     </div>
-    <div class="fy-hint">Graba cada guion como voz en off y súbelo eligiendo su guion: el módulo hereda persona, ángulo y texto en pantalla, y la IA le quita silencios, tomas repetidas y errores (puedes subir material crudo). Subtítulos: los activas en la app de TikTok al publicar.</div>
+    <div class="fy-hint">Grabas para la <b>persona activa</b> de la barra de arriba. Elige el guion que grabaste y el módulo hereda persona, ángulo y texto en pantalla; la IA le quita silencios, tomas repetidas y errores (sube material crudo). Subtítulos: actívalos en la app de TikTok al publicar.</div>
     <div id="fy-mods-box" style="margin-top:12px"></div>`;
 
   const paso3=`
@@ -899,12 +910,13 @@ function renderFyForm(){
 }
 
 function fyNextStep(){
-  const hasAll=['hook','body','cta'].every(t=>F.mods.some(m=>m.type===t&&m.status==='ready'));
-  const readyC=F.combos.filter(c=>c.status==='ready').length;
-  if(!F.scripts.length&&!F.mods.length)return 1;
+  const sM=sList(F.mods),sC=sList(F.combos),sS=sList(F.scripts);
+  const hasAll=['hook','body','cta'].every(t=>sM.some(m=>m.type===t&&m.status==='ready'));
+  const readyC=sC.filter(c=>c.status==='ready').length;
+  if(!sS.length&&!sM.length)return 1;
   if(!hasAll)return 2;
   if(!readyC)return 3;
-  if(F.queue.length)return 4;
+  if(sQueue().length)return 4;
   return 5;
 }
 function fyTog(n){F.manual=(F.manual===n?-1:n);fyApplyOpen();}
@@ -963,8 +975,38 @@ async function fyUploadPhoto(e){
 function fyToggleAdv(){
   F.advOpen=!F.advOpen;
   const e=$('fy-adv');if(e)e.style.display=F.advOpen?'block':'none';
-  const l=$('fy-advlnk');if(l)l.textContent=(F.advOpen?'▾':'▸')+' añadir videos ganadores como contexto (opcional)';
+  const l=$('fy-advlnk');if(l)l.textContent=(F.advOpen?'▾':'▸')+' avanzado — investigar persona · videos ganadores · mapa de ángulos';
 }
+// ── Barra de personas (filtro maestro del embudo) ──
+function fyPersonaTabs(){
+  const order=[],meta={};
+  const add=n=>{n=(n||'').trim();if(n&&!(n in meta)){meta[n]={key:n,label:n};order.push(n);}};
+  (F.personas||[]).forEach(p=>{if(p&&p.name)add(p.name);});
+  F.scripts.forEach(s=>add(s.persona));
+  F.mods.forEach(m=>add(m.persona));
+  F.combos.forEach(c=>add(c.persona));
+  const tabs=order.map(n=>meta[n]);
+  const orphan=[...F.scripts,...F.mods,...F.combos].some(x=>!((x.persona||'').trim()));
+  if(orphan)tabs.push({key:'__none__',label:'Sin persona',orphan:true});
+  return tabs;
+}
+function renderFyPersonaBar(){
+  const pb=$('fy-personabar');if(!pb)return;
+  const tabs=fyPersonaTabs();
+  if(!tabs.length){pb.innerHTML='';return;}
+  if(!tabs.find(t=>t.key===F.activePersona))fySetPersona(tabs[0].key);
+  const chips=tabs.map(t=>{
+    const recS=F.scripts.filter(s=>(s.persona||'')===t.key&&s.status==='recorded').length;
+    const totS=F.scripts.filter(s=>(s.persona||'')===t.key).length;
+    const vids=F.combos.filter(c=>(c.persona||'')===t.key&&c.status==='ready').length;
+    const badge=totS?`${recS}/${totS} guiones`:(vids?`${vids} videos`:'');
+    return`<div class="ptab${t.key===F.activePersona?' active':''}" title="${esc(t.orphan?'Material sin persona asignada':t.label)}" onclick='fyTab(${JSON.stringify(t.key)})'>${t.orphan?'📦':'👤'} ${esc(t.orphan?'Sin persona':fyShort(t.label))}${badge?` <span class="b">${badge}</span>`:''}</div>`;
+  }).join('');
+  const act=tabs.find(t=>t.key===F.activePersona);
+  const rm=act&&!act.orphan?`<span class="lnk" style="color:var(--r);font-size:11px;margin-left:auto" onclick='fyRemovePersona(${JSON.stringify(act.label)})'>✕ quitar persona</span>`:'';
+  pb.innerHTML=`<div class="psel"><div class="psel-l" style="display:flex;align-items:center;gap:8px">Buyer persona — filtra todo el embudo (guiones · módulos · videos · cola · métricas). Trabajas una a la vez.${rm}</div><div class="ptabs">${chips}<div class="ptab" style="border-style:dashed;color:var(--t3)" title="Empieza una persona nueva" onclick="fyNewPersona()">＋ nueva</div></div></div>`;
+}
+function fyNewPersona(){F.manual=1;fyApplyOpen();const bi=$('fy-brief');if(bi){bi.value='';bi.focus();}}
 async function fyResearchPersonas(){
   if(!F.camp)return;
   if(!F.prodImg){alert('Sube la foto del producto primero');return;}
@@ -973,11 +1015,11 @@ async function fyResearchPersonas(){
 }
 function fyUsePersona(name){const bi=$('fy-brief');if(bi){bi.value=name;bi.focus();}}
 async function fyUsePersonaGen(name){const bi=$('fy-brief');if(bi)bi.value=name;await fyGenScripts();}
-function fyTab(key){F.activePersona=key;renderFyStudio();}
+function fyTab(key){fySetPersona(key);renderFyLists();}
 function fyCtxTog(){F.ctxOpen=!F.ctxOpen;renderFyStudio();}
 async function fyRemovePersona(name){
   if(!confirm(`¿Quitar "${name}" y TODOS sus guiones de esta campaña? (úsalo si esta persona es de otro producto)`))return;
-  try{await api('POST','/api/factory/personas/remove',{campaign_id:F.camp,persona:name});await loadFactory();}
+  try{fySetPersona('');await api('POST','/api/factory/personas/remove',{campaign_id:F.camp,persona:name});await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyGenScripts(){
@@ -988,7 +1030,8 @@ async function fyGenScripts(){
   try{
     await api('POST','/api/factory/scripts/generate',{campaign_id:F.camp,product_name:F.prod,brief,image_filename:F.prodImg||''});
     await loadFactory();
-    if(F.personas.length){F.activePersona=F.personas[F.personas.length-1].name;renderFyStudio();}
+    if(F.personas.length)fySetPersona(F.personas[F.personas.length-1].name);
+    renderFyLists();
   }catch(e){alert(e.message);}
 }
 async function fyScriptSt(id,st){
@@ -1006,7 +1049,7 @@ async function fyUpload(){
     for(const file of files){
       const fd=new FormData();
       fd.append('file',file);fd.append('type',F.form.type);fd.append('campaign_id',F.camp);
-      fd.append('tags',F.form.tags);fd.append('overlay_text',F.form.overlay);
+      fd.append('persona',fyEffPersona());fd.append('overlay_text',F.form.overlay);
       fd.append('script_id',F.form.script||'');
       const r=await fetch('/api/factory/modules',{method:'POST',body:fd});
       if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail);}
@@ -1018,14 +1061,16 @@ async function fyUpload(){
 }
 
 function fyStats(){
-  const m=F.status.modules||{},c=F.status.combos||{};
+  const sm=sList(F.mods),scm=sList(F.combos);
   const busy=F.status.pipeline_running||F.status.combos_running;
   const chips=[];
-  const readyM=m.ready||0,totM=Object.values(m).reduce((a,b)=>a+b,0);
-  const readyC=c.ready||0;
-  chips.push(`<span class="fy-chip"><b>${readyM}</b>/${totM} módulos listos</span>`);
-  chips.push(`<span class="fy-chip"><b>${readyC}</b> videos generados</span>`);
-  if(m.error)chips.push(`<span class="fy-chip" style="color:var(--r)">${m.error} con error</span>`);
+  const readyM=sm.filter(m=>m.status==='ready').length;
+  const errM=sm.filter(m=>m.status==='error').length;
+  const readyC=scm.filter(c=>c.status==='ready').length;
+  const who=F.activePersona?` · ${esc(fyShort(fyPersonaLabel()))}`:'';
+  chips.push(`<span class="fy-chip"><b>${readyM}</b>/${sm.length} módulos listos${who}</span>`);
+  chips.push(`<span class="fy-chip"><b>${readyC}</b> videos${who}</span>`);
+  if(errM)chips.push(`<span class="fy-chip" style="color:var(--r)">${errM} con error</span>`);
   if(busy)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>${F.status.combos_running?'Generando combinaciones...':'Procesando módulos...'}</span>`);
   if(F.status.research_running)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Transcribiendo videos ganadores...</span>`);
   if(F.status.scripts_generating)chips.push(`<span class="fy-chip"><div class="spin" style="width:12px;height:12px;border-width:2px"></div>Escribiendo guiones...</span>`);
@@ -1049,7 +1094,6 @@ function fyModItem(m){
       ${m.status==='ready'?` · <span class="lnk" onclick="fyEditIA(${m.id},'${esc(m.label)}')">✂ editar IA</span>`:''}
       · <span class="lnk" style="color:var(--r)" onclick="fyDelMod(${m.id},'${esc(m.label)}')">borrar</span></div>
     ${m.overlay_text?`<div class="ov">“${esc(m.overlay_text)}”</div>`:''}
-    ${m.tags&&m.tags.length?`<div class="meta">tags: ${esc(m.tags.join(', '))}</div>`:''}
     ${m.status==='error'?`<div class="ov" style="color:var(--r)" title="${esc(m.error)}">${esc((m.error||'').slice(0,60))}</div>`:''}
   </div>`;
 }
@@ -1095,7 +1139,7 @@ function renderFyStudio(){
     const am=F.angles.length?`<div class="gp-coll" onclick="fyCtxTog()">${F.ctxOpen?'▾':'▸'} mapa de ángulos (${F.angles.length})</div>${F.ctxOpen?`<div style="margin-bottom:4px">${F.angles.map(a=>`<div style="font-size:12px;padding:5px 0;border-bottom:1px solid var(--bdl)"><b>${esc(a.angle||'')}</b>${a.evidence?` — <span style="color:var(--t3)">${esc(a.evidence)}</span>`:''}${a.hook_formula?`<div style="color:var(--t4);font-style:italic;margin-top:2px">${esc(a.hook_formula)}</div>`:''}</div>`).join('')}</div>`:''}`:'';
     an.innerHTML=err+am;
   }
-  const vis=F.scripts.filter(s=>s.status!=='discarded');
+  const vis=sList(F.scripts).filter(s=>s.status!=='discarded');   // solo la persona activa
   if(sc){
     const scriptCard=s=>{
       const cls=s.type==='hook'?'h':s.type==='body'?'b':'c';
@@ -1109,30 +1153,21 @@ function renderFyStudio(){
       const its=items.filter(s=>s.type===t);
       return`<div class="modcol"><h5>${TYPE_ES[t].toUpperCase()}S (${its.length})</h5>${its.map(scriptCard).join('')||'<div style="color:var(--t4);font-size:12px">—</div>'}</div>`;}).join('')}</div>`;
     const pdetail=p=>p&&(p.pain||p.desire||p.objection)?`<div class="pdetail">${p.pain?`<b>dolor:</b> ${esc(p.pain)}`:''}${p.desire?` · <b>desea:</b> ${esc(p.desire)}`:''}${p.objection?` · <i>objeción: ${esc(p.objection)}</i>`:''}</div>`:'';
-    const names=[...new Set([...F.personas.map(p=>p.name||''),...vis.map(s=>s.persona||'')])].filter(Boolean);
-    const groups=names.map(n=>({key:n,label:n,items:vis.filter(s=>(s.persona||'')===n),persona:pmap[n]})).filter(g=>g.items.length);
-    const generic=vis.filter(s=>!(s.persona||''));
-    const tabs=groups.slice();
-    if(generic.length)tabs.push({key:'__generic__',label:'Genéricos',items:generic,persona:null,generic:true});
-    const pb=$('fy-personabar');
-    if(!tabs.length){sc.innerHTML='';if(pb)pb.innerHTML='';}
-    else{
-      if(!tabs.find(t=>t.key===F.activePersona))F.activePersona=tabs[tabs.length-1].key;
-      const active=tabs.find(t=>t.key===F.activePersona);
-      const short=s=>{const w=String(s||'').split(/[\s,]+/).filter(Boolean);return (w.slice(0,2).join(' ')||s).slice(0,22);};
-      // Barra de personas al TOPE (sub-proyectos del producto)
-      if(pb)pb.innerHTML=`<div class="psel"><div class="psel-l">Buyer personas de este producto · trabajas una a la vez</div><div class="ptabs">${tabs.map(t=>{
-        const rec=t.items.filter(x=>x.status==='recorded').length;
-        return`<div class="ptab${t.key===F.activePersona?' active':''}" title="${esc(t.generic?'Genéricos (combinan con todas)':t.label)}" onclick='fyTab(${JSON.stringify(t.key)})'>${t.generic?'🌐':'👤'} ${esc(t.generic?'Genéricos':short(t.label))} <span class="b">${rec}/${t.items.length}</span></div>`;}).join('')}</div></div>`;
-      const rec=active.items.filter(s=>s.status==='recorded').length;
-      const hd=`<div class="pblock-hd"><span class="nm">${active.generic?'🌐 Genéricos':'👤 '+esc(active.label)}</span><span style="font-size:12px;color:var(--t3)">${rec}/${active.items.length} grabados</span>${active.generic?'':`<span class="lnk" style="color:var(--r);font-size:11px;margin-left:auto" onclick='fyRemovePersona(${JSON.stringify(active.label)})'>✕ quitar esta persona</span>`}</div>`;
-      sc.innerHTML=`<div style="margin-top:12px"><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">GUIONES PARA GRABAR (voz en off) — persona activa: <b>${active.generic?'Genéricos':esc(short(active.label))}</b> (cámbiala en las pestañas de arriba)</h5>${hd}${active.generic?'':pdetail(active.persona)}${grid(active.items)}</div>`;
+    const tabs=fyPersonaTabs();
+    if(!tabs.length){
+      sc.innerHTML=`<div class="fy-hint" style="margin-top:12px">Aún no hay guiones. Sube la foto del producto y presiona <b>✨ Generar guiones</b> para crear tu primera persona.</div>`;
+    }else{
+      const isNone=F.activePersona==='__none__';
+      const name=fyPersonaLabel();
+      const rec=vis.filter(s=>s.status==='recorded').length;
+      const hd=`<div class="pblock-hd"><span class="nm">${isNone?'📦 Sin persona':'👤 '+esc(name)}</span><span style="font-size:12px;color:var(--t3)">${rec}/${vis.length} grabados</span></div>`;
+      sc.innerHTML=`<div style="margin-top:12px"><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">GUIONES PARA GRABAR (voz en off) — persona activa: <b>${esc(fyShort(name))}</b> (cámbiala en la barra de arriba)</h5>${hd}${pdetail(pmap[F.activePersona])}${vis.length?grid(vis):'<div class="fy-hint">Esta persona aún no tiene guiones. Escribe su nombre arriba y genera, o usa ＋ nueva.</div>'}</div>`;
     }
   }
   if(sel){
-    const opts=F.scripts.filter(s=>s.type===F.form.type&&s.status==='pending');
+    const opts=sList(F.scripts).filter(s=>s.type===F.form.type&&s.status==='pending');  // pendientes de la persona activa
     const cur=F.form.script;
-    sel.innerHTML=`<option value="">— sin guion —</option>`+opts.map(s=>`<option value="${s.id}"${String(s.id)===String(cur)?' selected':''}>${esc((s.persona?'['+s.persona.slice(0,16)+'] ':'')+(s.angle||'guion')+': '+s.text.slice(0,36))}…</option>`).join('');
+    sel.innerHTML=`<option value="">— sin guion —</option>`+opts.map(s=>`<option value="${s.id}"${String(s.id)===String(cur)?' selected':''}>${esc((s.angle||'guion')+': '+s.text.slice(0,42))}…</option>`).join('');
   }
 }
 
@@ -1140,17 +1175,19 @@ function renderFyLists(){
   if(!F.camp){$('fy-lists').innerHTML='';return;}
   if(!$('fy-st-1'))return; // el formulario aún no está montado
   $('fy-lists').innerHTML='';
+  renderFyPersonaBar();            // barra de personas = filtro maestro
   $('fy-chips').innerHTML=fyStats();
   renderFyStudio();
+  const mods=sList(F.mods),combos=sList(F.combos),queue=sQueue();  // todo, scoped a la persona activa
 
-  // Paso 2 · módulos subidos
+  // Paso 2 · módulos subidos (de la persona activa)
   const byType={hook:[],body:[],cta:[]};
-  F.mods.forEach(m=>{(byType[m.type]||[]).push(m);});
+  mods.forEach(m=>{(byType[m.type]||[]).push(m);});
   const cols=['hook','body','cta'].map(t=>`<div class="modcol"><h5>${TYPE_ES[t].toUpperCase()}S (${byType[t].length})</h5>${byType[t].map(fyModItem).join('')||'<div style="color:var(--t4);font-size:12px">Sin módulos</div>'}</div>`).join('');
-  $('fy-mods-box').innerHTML=F.mods.length?`<div class="modgrid">${cols}</div>`:'';
+  $('fy-mods-box').innerHTML=mods.length?`<div class="modgrid">${cols}</div>`:'';
 
-  // Paso 3 · videos generados
-  const rows=F.combos.map(c=>{
+  // Paso 3 · videos generados (de la persona activa)
+  const rows=combos.map(c=>{
     const[bg,fg]=scoreCol(c.score);
     const won=(c.gmv||0)>0;
     return`<tr${won?' style="background:#F0FDF4"':''}>
@@ -1163,10 +1200,10 @@ function renderFyLists(){
     <td>${c.published_at?'✓':''}</td>
     <td style="white-space:nowrap">${c.output_path?`<a class="lnk" href="${furl(c.output_path)}" target="_blank">ver</a> · `:''}<span class="lnk" onclick='cpTxt(${JSON.stringify(c.caption||"")},this)'>caption</span> · <span class="lnk" style="color:var(--g,#10B981)" title="Genera hooks nuevos del ángulo de este video para su persona" onclick="fyDouble(${c.id})">⭐ doblar</span>${c.published_at?'':` · <span class="lnk" onclick="fyPub(${c.id})">publicado</span>`}</td>
   </tr>`;}).join('');
-  $('fy-combos-box').innerHTML=F.combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="font-size:11px;color:var(--t4);margin-top:6px">⭐ <b>doblar</b> = la IA genera hooks nuevos del ángulo de ese video para su buyer persona (úsalo con los que vendieron).</div>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos. Cuando tus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
+  $('fy-combos-box').innerHTML=combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="font-size:11px;color:var(--t4);margin-top:6px">⭐ <b>doblar</b> = la IA genera hooks nuevos del ángulo de ese video para su buyer persona (úsalo con los que vendieron).</div>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos de esta persona. Cuando sus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
 
-  // Paso 4 · cola de hoy
-  $('fy-queue-box').innerHTML=F.queue.length?`<div class="qwrap">${F.queue.map(q=>{
+  // Paso 4 · cola de hoy (de la persona activa)
+  $('fy-queue-box').innerHTML=queue.length?`<div class="qwrap">${queue.map(q=>{
     const[bg,fg]=scoreCol(q.score);
     return`<div class="qcard"><div class="nm">${esc(q.name)} <span class="scorep" style="background:${bg};color:${fg}">${q.score!=null?Math.round(q.score):'—'}</span></div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${(q.duration||0).toFixed(0)}s</div>
@@ -1176,13 +1213,14 @@ function renderFyLists(){
       <button class="abtn" onclick="fyPub(${q.id})">✓ Publicado</button>
     </div></div>`;}).join('')}</div>`:'<div style="color:var(--t4);font-size:13px">Nada pendiente de publicar — genera videos en el paso 3.</div>';
 
-  // Paso 5 · atribución
-  const attrRows=t=>F.attr.filter(a=>a.type===t&&a.videos_with_metrics>0).map(a=>`<tr>
+  // Paso 5 · atribución (de la persona activa)
+  const attr=sList(F.attr);
+  const attrRows=t=>attr.filter(a=>a.type===t&&a.videos_with_metrics>0).map(a=>`<tr>
     <td style="font-weight:600">${esc(a.label)}</td>
     <td style="font-size:12px" title="${esc(a.snippet)}">${esc(a.overlay_text||a.snippet||'')}</td>
     <td>${a.videos_with_metrics}</td><td>${a.avg_views!=null?fmtN(a.avg_views):'—'}</td>
     <td>${a.avg_gmv!=null?'$'+fmtN(a.avg_gmv):'—'}</td></tr>`).join('');
-  const hasMetrics=F.attr.some(a=>a.videos_with_metrics>0);
+  const hasMetrics=attr.some(a=>a.videos_with_metrics>0);
   $('fy-attr-box').innerHTML=hasMetrics?`<div class="modgrid">${['hook','body','cta'].map(t=>`<div><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">${TYPE_ES[t].toUpperCase()}S</h5><table><thead><tr><th></th><th>Texto</th><th>n</th><th>Views</th><th>GMV</th></tr></thead><tbody>${attrRows(t)||''}</tbody></table></div>`).join('')}</div>`:'';
 
   fySummaries(hasMetrics);
@@ -1190,25 +1228,26 @@ function renderFyLists(){
 }
 
 function fySummaries(hasMetrics){
-  const pend=F.scripts.filter(s=>s.status==='pending').length;
-  const rec=F.scripts.filter(s=>s.status==='recorded').length;
-  const sum1=F.scripts.length?`${pend} por grabar · ${rec} grabados`
+  const sS=sList(F.scripts),sM=sList(F.mods),sC=sList(F.combos),sQ=sQueue();
+  const pend=sS.filter(s=>s.status==='pending').length;
+  const rec=sS.filter(s=>s.status==='recorded').length;
+  const sum1=sS.length?`${pend} por grabar · ${rec} grabados`
     :(F.prodImg?'foto lista — genera los guiones':'sube la foto del producto');
-  const readyM=F.mods.filter(m=>m.status==='ready').length;
-  const missing=['hook','body','cta'].filter(t=>!F.mods.some(m=>m.type===t&&m.status==='ready'));
-  const sum2=F.mods.length?`${readyM}/${F.mods.length} listos${missing.length?' · faltan: '+missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', '):''}`:'sin módulos aún';
-  const readyC=F.combos.filter(c=>c.status==='ready').length;
+  const readyM=sM.filter(m=>m.status==='ready').length;
+  const missing=['hook','body','cta'].filter(t=>!sM.some(m=>m.type===t&&m.status==='ready'));
+  const sum2=sM.length?`${readyM}/${sM.length} listos${missing.length?' · faltan: '+missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', '):''}`:'sin módulos aún';
+  const readyC=sC.filter(c=>c.status==='ready').length;
   const sum3=readyC?`${readyC} videos`:'pendiente';
-  const sum4=F.queue.length?`${F.queue.length} por publicar`:'al día';
+  const sum4=sQ.length?`${sQ.length} por publicar`:'al día';
   const sum5=hasMetrics?'con métricas':'pendiente del CSV semanal';
   [[1,sum1],[2,sum2],[3,sum3],[4,sum4],[5,sum5]].forEach(([n,s])=>{const e=$('fy-sum-'+n);if(e)e.textContent=s;});
 
   const nx=fyNextStep();
   const msgs={
     1:'Sube la foto del producto y genera tus guiones (opcional: a quién le hablas o el ángulo)',
-    2:missing.length&&F.mods.length?`Graba y sube lo que falta: ${missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', ')}`:'Graba los guiones pendientes y súbelos enlazados a su guion',
-    3:'Tus módulos están listos — presiona ⚡ Generar combinaciones',
-    4:`Publica la cola de hoy (${F.queue.length} video${F.queue.length===1?'':'s'} con caption listo)`,
+    2:missing.length&&sM.length?`Graba y sube lo que falta de esta persona: ${missing.map(t=>TYPE_ES[t].toLowerCase()+'s').join(', ')}`:'Graba los guiones pendientes y súbelos enlazados a su guion',
+    3:'Los módulos de esta persona están listos — presiona ⚡ Generar combinaciones',
+    4:`Publica la cola de hoy (${sQ.length} video${sQ.length===1?'':'s'} con caption listo)`,
     5:'Ciclo al día 🎉 — el viernes importa el CSV de métricas para ver qué gana'
   };
   const e=$('fy-next');if(e)e.innerHTML=`<div class="fy-nextb" onclick="fyTog(${nx})">👉 <b>Siguiente:</b> ${msgs[nx]}</div>`;
@@ -1237,7 +1276,7 @@ async function fyDelMod(id,label){
 }
 async function fyGen(){
   if(!F.camp){alert('Selecciona una campaña');return;}
-  try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,product_name:F.prod,min_duration:F.minD,max_duration:F.maxD});await loadFactory();}
+  try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,persona:fyEffPersona(),product_name:F.prod,min_duration:F.minD,max_duration:F.maxD});await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyRerender(){
@@ -1259,7 +1298,7 @@ async function fyDouble(id){
   if(!confirm('Doblar al ganador: la IA generará hooks nuevos del ángulo de este video para su buyer persona (se añaden como pendientes en su pestaña). ¿Continuar?'))return;
   try{
     const r=await api('POST','/api/factory/combos/double',{combo_id:id});
-    if(r&&r.persona)F.activePersona=r.persona;
+    if(r&&r.persona)fySetPersona(r.persona);
     await loadFactory();
   }catch(e){alert(e.message);}
 }

@@ -694,6 +694,7 @@ async def factory_upload_module(
     file: UploadFile = File(...),
     type: str = Form(...),
     campaign_id: int = Form(...),
+    persona: str = Form(""),
     tags: str = Form(""),
     overlay_text: str = Form(""),
     script_id: str = Form(""),
@@ -716,6 +717,7 @@ async def factory_upload_module(
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     overlay = overlay_text.strip()
+    persona = (persona or "").strip()   # persona activa (del scope); filtra todo
     angle = ""
     sid = None
     if script_id.strip():
@@ -726,17 +728,18 @@ async def factory_upload_module(
             angle = srow["angle"] or ""
             if not overlay:
                 overlay = srow["overlay_text"] or ""
-            # El buyer persona viaja como tag: la matriz solo combina piezas de la
-            # misma persona ('' = genérico, sin tag → combina con todas).
-            persona = (srow["persona"] or "").strip()
-            if persona and persona not in tag_list:
-                tag_list.append(persona)
+            # El guion manda la persona: cada persona es un mini-proyecto y solo
+            # combina con módulos de su misma persona.
+            if srow["persona"]:
+                persona = (srow["persona"] or "").strip()
             conn.execute("UPDATE factory_scripts SET status='recorded' WHERE id=?", (sid,))
+    if persona and persona not in tag_list:
+        tag_list.append(persona)   # tag de respaldo para vistas antiguas
     conn.execute("""
         INSERT INTO factory_modules
-            (campaign_id, type, label, original_name, src_path, tags, overlay_text, script_id, angle)
-        VALUES (?,?,?,?,?,?,?,?,?)
-    """, (campaign_id, type, label, file.filename, str(src_path),
+            (campaign_id, type, label, original_name, src_path, persona, tags, overlay_text, script_id, angle)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+    """, (campaign_id, type, label, file.filename, str(src_path), persona,
           json.dumps(tag_list, ensure_ascii=False), overlay, sid, angle))
     conn.commit()
     module_id = conn.execute(
@@ -828,6 +831,7 @@ async def factory_delete_module(module_id: int):
 
 class GenerateCombosRequest(BaseModel):
     campaign_id: int
+    persona: str = ""           # persona activa: solo combina sus módulos
     product_name: str = ""
     min_duration: float = 25.0
     max_duration: float = 40.0
@@ -837,16 +841,18 @@ class GenerateCombosRequest(BaseModel):
 async def factory_generate_combos(req: GenerateCombosRequest):
     conn = get_conn()
     counts = {t: conn.execute(
-        "SELECT COUNT(*) AS n FROM factory_modules WHERE type=? AND status='ready' AND campaign_id=?",
-        (t, req.campaign_id),
+        "SELECT COUNT(*) AS n FROM factory_modules "
+        "WHERE type=? AND status='ready' AND campaign_id=? AND COALESCE(persona,'')=?",
+        (t, req.campaign_id, req.persona or ""),
     ).fetchone()["n"] for t in ("hook", "body", "cta")}
     conn.close()
     missing = [t for t, n in counts.items() if n == 0]
     if missing:
         if vf.edits_running():
             raise HTTPException(400, "La IA está recortando módulos — las combinaciones se generarán solas al terminar")
-        raise HTTPException(400, f"Faltan módulos listos de tipo: {', '.join(missing)}")
-    vf.kick_combos(req.campaign_id, req.product_name, req.min_duration, req.max_duration)
+        quien = f" para «{req.persona}»" if req.persona else ""
+        raise HTTPException(400, f"Faltan módulos listos{quien} de tipo: {', '.join(missing)}")
+    vf.kick_combos(req.campaign_id, req.persona, req.product_name, req.min_duration, req.max_duration)
     return {"status": "generating", "ready_modules": counts}
 
 

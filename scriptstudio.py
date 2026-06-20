@@ -238,6 +238,24 @@ def _generate(campaign_id: int, product_name: str, brief: str, image_path: str |
     if not scripts:
         raise ValueError("Claude no devolvió guiones — reintenta")
 
+    # Sin genéricos: cada generación es de UNA persona. Si un guion viene sin
+    # persona (o el modelo dejó ""), se le asigna ESA persona para que combine.
+    target_persona = ""
+    for p in new_personas:
+        if isinstance(p, dict) and (p.get("name") or "").strip():
+            target_persona = p["name"].strip()
+            break
+    if not target_persona:
+        target_persona = (brief or "").strip()
+    if not target_persona:
+        for s in scripts:
+            if (s.get("persona") or "").strip():
+                target_persona = s["persona"].strip()
+                break
+    for s in scripts:
+        if not (s.get("persona") or "").strip():
+            s["persona"] = target_persona
+
     conn = get_conn()
     # Acumular personas/ángulos por campaña (1 persona a la vez): merge por nombre/ángulo
     camp = conn.execute("SELECT personas, angle_map FROM factory_campaigns WHERE id=?",

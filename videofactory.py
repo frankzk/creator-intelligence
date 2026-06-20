@@ -497,7 +497,8 @@ def _edit_worker(module_id: int, target: float | None, regen: dict | None):
                 if not st or st["status"] in ("ready", "error"):
                     break
             if st and st["status"] == "ready":
-                kick_combos(regen["campaign_id"], regen.get("product_name", ""),
+                kick_combos(regen["campaign_id"], regen.get("persona", ""),
+                            regen.get("product_name", ""),
                             regen["min_dur"], regen["max_dur"])
     except Exception as exc:
         print(f"[factory/edit] {label}: {exc}")
@@ -511,28 +512,24 @@ def _edit_worker(module_id: int, target: float | None, regen: dict | None):
 
 
 # ─── Matriz de combinaciones ──────────────────────────────────────────────────
+# La compatibilidad ahora la da la persona: cada combo solo une módulos de la
+# misma persona (cada persona es un mini-proyecto). Ya no se usan tags de matriz.
 
-def _tags_compatible(*tag_lists: list[str]) -> bool:
-    """Módulos sin tags combinan con todo; con tags, cada par debe compartir una."""
-    tagged = [set(t) for t in tag_lists if t]
-    return all(a & b for i, a in enumerate(tagged) for b in tagged[i + 1:])
-
-
-def kick_combos(campaign_id: int, product_name: str, min_dur: float, max_dur: float):
+def kick_combos(campaign_id: int, persona: str, product_name: str, min_dur: float, max_dur: float):
     global _combos_running
     with _combos_lock:
         if _combos_running:
             return
         _combos_running = True
     threading.Thread(
-        target=_combos_worker, args=(campaign_id, product_name, min_dur, max_dur), daemon=True
+        target=_combos_worker, args=(campaign_id, persona, product_name, min_dur, max_dur), daemon=True
     ).start()
 
 
-def _combos_worker(campaign_id: int, product_name: str, min_dur: float, max_dur: float):
+def _combos_worker(campaign_id: int, persona: str, product_name: str, min_dur: float, max_dur: float):
     global _combos_running
     try:
-        _generate_combos(campaign_id, product_name, min_dur, max_dur)
+        _generate_combos(campaign_id, persona, product_name, min_dur, max_dur)
     except Exception as exc:
         print(f"[factory/combos] fatal: {exc}")
     finally:
@@ -540,13 +537,15 @@ def _combos_worker(campaign_id: int, product_name: str, min_dur: float, max_dur:
             _combos_running = False
 
 
-def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_dur: float):
+def _generate_combos(campaign_id: int, persona: str, product_name: str, min_dur: float, max_dur: float):
     from analyzer import score_and_caption_combos
 
     conn = get_conn()
+    # Solo módulos listos de ESTA persona (cada persona es un mini-proyecto)
     ready = conn.execute(
-        "SELECT * FROM factory_modules WHERE status='ready' AND campaign_id=?",
-        (campaign_id,),
+        "SELECT * FROM factory_modules WHERE status='ready' AND campaign_id=? "
+        "AND COALESCE(persona,'')=?",
+        (campaign_id, persona or ""),
     ).fetchall()
     by_type = {"hook": [], "body": [], "cta": []}
     for m in ready:
@@ -555,7 +554,7 @@ def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_du
     existing = {r["name"] for r in conn.execute("SELECT name FROM factory_combos").fetchall()}
     new_combos = []
     totals = []
-    skipped_exist = skipped_dur = skipped_tags = 0
+    skipped_exist = skipped_dur = 0
     for h, b, c in cartesian(by_type["hook"], by_type["body"], by_type["cta"]):
         name = f"{h['label']}-{b['label']}-{c['label']}"
         total = h["duration"] + b["duration"] + c["duration"]
@@ -566,13 +565,9 @@ def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_du
         if not (min_dur <= total <= max_dur):
             skipped_dur += 1
             continue
-        tags = [json.loads(m["tags"] or "[]") for m in (h, b, c)]
-        if not _tags_compatible(*tags):
-            skipped_tags += 1
-            continue
         conn.execute(
-            "INSERT INTO factory_combos (campaign_id, name, hook_id, body_id, cta_id, duration) VALUES (?,?,?,?,?,?)",
-            (campaign_id, name, h["id"], b["id"], c["id"], round(total, 2)),
+            "INSERT INTO factory_combos (campaign_id, persona, name, hook_id, body_id, cta_id, duration) VALUES (?,?,?,?,?,?,?)",
+            (campaign_id, persona or "", name, h["id"], b["id"], c["id"], round(total, 2)),
         )
         new_combos.append({"name": name, "hook": h, "body": b, "cta": c})
     conn.commit()
@@ -591,7 +586,8 @@ def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_du
         if budget >= 5 and long_bodies:
             for b in long_bodies:
                 kick_edit(b["id"], target_seconds=target, regen={
-                    "campaign_id": campaign_id, "product_name": product_name,
+                    "campaign_id": campaign_id, "persona": persona,
+                    "product_name": product_name,
                     "min_dur": min_dur, "max_dur": max_dur,
                 })
             _set_combos_note(
@@ -605,10 +601,12 @@ def _generate_combos(campaign_id: int, product_name: str, min_dur: float, max_du
                 f"combinaciones suman {min(totals):.0f}–{max(totals):.0f}s. Ajusta el rango o "
                 f"revisa la duración de hooks y CTAs."
             )
-    elif skipped_exist and not skipped_tags:
+    elif skipped_exist:
         _set_combos_note("Sin combinaciones nuevas: todas las posibles ya existen.")
     else:
-        _set_combos_note("0 combinaciones: los tags de los módulos no son compatibles entre sí.")
+        _set_combos_note(
+            "0 combinaciones: esta persona necesita al menos 1 hook, 1 cuerpo y 1 CTA listos."
+        )
 
     # Concat por combo (rápido: -c copy)
     for combo in new_combos:
@@ -764,7 +762,7 @@ def module_attribution(campaign_id: int | None = None) -> list[dict]:
     for mtype, fk in (("hook", "hook_id"), ("body", "body_id"), ("cta", "cta_id")):
         params = (mtype, campaign_id) if campaign_id is not None else (mtype,)
         rows = conn.execute(f"""
-            SELECT m.id, m.label, m.overlay_text, m.transcript,
+            SELECT m.id, m.label, m.overlay_text, m.transcript, m.persona,
                    COUNT(co.id) AS n,
                    AVG(co.views) AS avg_views,
                    AVG(co.gmv) AS avg_gmv,
@@ -779,6 +777,7 @@ def module_attribution(campaign_id: int | None = None) -> list[dict]:
             out.append({
                 "type": mtype, "label": r["label"],
                 "overlay_text": r["overlay_text"],
+                "persona": r["persona"] or "",
                 "snippet": (r["transcript"] or "")[:90],
                 "videos_with_metrics": r["n"],
                 "avg_views": round(r["avg_views"], 0) if r["avg_views"] is not None else None,

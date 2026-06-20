@@ -148,7 +148,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             campaign_id INTEGER NOT NULL,
             type TEXT NOT NULL,                -- hook | body | cta
-            persona TEXT DEFAULT '',           -- buyer persona ('' = genérico, combina con todas)
+            persona TEXT DEFAULT '',           -- buyer persona (cada persona es un mini-proyecto; sin genéricos)
             angle TEXT DEFAULT '',             -- ángulo de venta (del mapa)
             text TEXT NOT NULL,                -- guion de voz en off
             overlay_text TEXT DEFAULT '',      -- texto en pantalla sugerido
@@ -170,6 +170,11 @@ def init_db():
         conn.execute("ALTER TABLE factory_modules ADD COLUMN angle TEXT DEFAULT ''")
     if "trim_of" not in mod_cols:
         conn.execute("ALTER TABLE factory_modules ADD COLUMN trim_of INTEGER")
+    if "persona" not in mod_cols:
+        conn.execute("ALTER TABLE factory_modules ADD COLUMN persona TEXT DEFAULT ''")
+    combo_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_combos)").fetchall()}
+    if "persona" not in combo_cols:
+        conn.execute("ALTER TABLE factory_combos ADD COLUMN persona TEXT DEFAULT ''")
     camp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_campaigns)").fetchall()}
     if "angle_map" not in camp_cols:
         conn.execute("ALTER TABLE factory_campaigns ADD COLUMN angle_map TEXT DEFAULT '[]'")

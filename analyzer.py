@@ -400,8 +400,6 @@ TAREA 3 — Guiones modulares para grabar como VOZ EN OFF, para ESE ÚNICO buyer
 - 3 cuerpos (15-25s, 40-65 palabras), VARÍA la estructura entre ellos: uno "Doble Caída",
   uno fórmula directa estilo Flor de Cuba, uno demostración/prueba social (ver metodología)
 - 3 CTAs (4-8s, 12-22 palabras), mencionan tocar la canasta naranja
-Si UN CTA sirve igual para cualquier persona (urgencia/oferta pura, sin mencionar el dolor de
-nadie), márcalo con persona "" — máximo 1 genérico.
 
 REGLAS DE COMBINABILIDAD (crítico — los módulos se combinan al azar DENTRO del persona):
 - Todas las piezas del persona hablan al MISMO "tú": mismo dolor, misma promesa, mismo registro.
@@ -412,7 +410,8 @@ REGLAS DE COMBINABILIDAD (crítico — los módulos se combinan al azar DENTRO d
 - overlay_text: texto en pantalla, máx 7 palabras, estilo TikTok (puede llevar 1 emoji);
   obligatorio en hooks, opcional en cuerpos/CTAs (déjalo "" si no aporta).
 - est_seconds: palabras ÷ 2.6, redondeado a 1 decimal.
-- El campo "persona" de cada guion = el nombre EXACTO del buyer persona (o "" si es genérico).
+- El campo "persona" de TODO guion (hooks, cuerpos y CTAs) = el nombre EXACTO de ESE único
+  buyer persona. No uses "" ni mezcles personas: todo pertenece a esta persona.
 
 Devuelve SOLO JSON:
 {{
@@ -421,7 +420,7 @@ Devuelve SOLO JSON:
  "scripts": [
    {{"type":"hook","persona":"...","angle":"...","text":"...","overlay_text":"...","est_seconds":4.5}},
    {{"type":"body","persona":"...","angle":"...","text":"...","overlay_text":"","est_seconds":20.0}},
-   {{"type":"cta","persona":"","angle":"...","text":"...","overlay_text":"...","est_seconds":6.0}}
+   {{"type":"cta","persona":"...","angle":"...","text":"...","overlay_text":"...","est_seconds":6.0}}
  ]
 }}"""
     )
