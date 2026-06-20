@@ -146,6 +146,56 @@ def _process_source(row: dict):
 
 # ─── Generación de mapa de ángulos + guiones ─────────────────────────────────
 
+def kick_winner_variations(campaign_id: int, persona: str, persona_detail: str,
+                           winner_text: str, winner_angle: str, image_path: str | None = None):
+    """Doblar al ganador: genera hooks nuevos del ángulo que vendió y los añade
+    (pending) a esa persona, sin borrar lo existente."""
+    global _gen_running, _gen_error
+    with _gen_lock:
+        if _gen_running:
+            return
+        _gen_running = True
+        _gen_error = ""
+    threading.Thread(target=_winner_worker,
+                     args=(campaign_id, persona, persona_detail, winner_text, winner_angle, image_path),
+                     daemon=True).start()
+
+
+def _winner_worker(campaign_id, persona, persona_detail, winner_text, winner_angle, image_path):
+    global _gen_running, _gen_error
+    try:
+        from analyzer import generate_hook_variations
+        hooks = generate_hook_variations(
+            product_name="", persona=persona, persona_detail=persona_detail,
+            winner_text=winner_text, winner_angle=winner_angle, image_path=image_path)
+        if not hooks:
+            raise ValueError("No se generaron variaciones — reintenta")
+        conn = get_conn()
+        for s in hooks:
+            text = str(s.get("text") or "").strip()
+            if not text:
+                continue
+            try:
+                est = round(float(s.get("est_seconds") or 0), 1)
+            except (TypeError, ValueError):
+                est = 0.0
+            conn.execute("""
+                INSERT INTO factory_scripts (campaign_id, type, persona, angle, text, overlay_text, est_seconds)
+                VALUES (?,?,?,?,?,?,?)
+            """, (campaign_id, "hook", persona,
+                  str(s.get("angle") or winner_angle or "").strip(), text,
+                  str(s.get("overlay_text") or "").strip(), est))
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        print(f"[factory/winner] fatal: {exc}")
+        with _gen_lock:
+            _gen_error = str(exc)[:300]
+    finally:
+        with _gen_lock:
+            _gen_running = False
+
+
 def kick_generation(campaign_id: int, product_name: str, brief: str = "",
                     image_path: str | None = None):
     global _gen_running, _gen_error

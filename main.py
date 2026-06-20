@@ -643,6 +643,52 @@ async def factory_patch_script(script_id: int, req: ScriptPatch):
     return {"status": "ok"}
 
 
+class DoubleWinnerRequest(BaseModel):
+    combo_id: int
+
+
+@app.post("/api/factory/combos/double")
+async def factory_double_winner(req: DoubleWinnerRequest):
+    """Doblar al ganador: del combo que vendió, genera hooks nuevos del mismo
+    ángulo para esa buyer persona (se añaden como pendientes)."""
+    conn = get_conn()
+    combo = conn.execute("SELECT * FROM factory_combos WHERE id=?", (req.combo_id,)).fetchone()
+    if not combo:
+        conn.close()
+        raise HTTPException(404, "Combo no encontrado")
+    hook = conn.execute("SELECT * FROM factory_modules WHERE id=?", (combo["hook_id"],)).fetchone()
+    camp = conn.execute("SELECT personas, product_image FROM factory_campaigns WHERE id=?",
+                        (combo["campaign_id"],)).fetchone()
+    conn.close()
+    if not hook:
+        raise HTTPException(400, "El hook de este combo ya no existe")
+
+    try:
+        tags = json.loads(hook["tags"] or "[]")
+    except Exception:
+        tags = []
+    try:
+        personas = json.loads((camp["personas"] if camp else "") or "[]")
+    except Exception:
+        personas = []
+    persona_names = {p.get("name") for p in personas if isinstance(p, dict)}
+    persona = next((t for t in tags if t in persona_names), (tags[0] if tags else ""))
+    if not persona:
+        raise HTTPException(400, "Este combo no tiene buyer persona. Genera guiones por persona y vuelve a intentar.")
+    pd = next((p for p in personas if isinstance(p, dict) and p.get("name") == persona), {})
+    detail = " · ".join(filter(None, [
+        f"dolor: {pd.get('pain')}" if pd.get("pain") else "",
+        f"desea: {pd.get('desire')}" if pd.get("desire") else "",
+        f"objeción: {pd.get('objection')}" if pd.get("objection") else ""]))
+    winner_text = (hook["transcript"] or hook["overlay_text"] or "").strip()
+    winner_angle = (hook["angle"] or "").strip()
+    img = (camp["product_image"] if camp else "") or ""
+    image_path = os.path.join("uploads", img) if img and os.path.exists(os.path.join("uploads", img)) else None
+
+    ss.kick_winner_variations(combo["campaign_id"], persona, detail, winner_text, winner_angle, image_path)
+    return {"status": "generating", "persona": persona}
+
+
 @app.post("/api/factory/modules")
 async def factory_upload_module(
     file: UploadFile = File(...),

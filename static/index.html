@@ -1152,17 +1152,18 @@ function renderFyLists(){
   // Paso 3 · videos generados
   const rows=F.combos.map(c=>{
     const[bg,fg]=scoreCol(c.score);
-    return`<tr>
-    <td style="font-weight:600">${esc(c.name)}</td>
+    const won=(c.gmv||0)>0;
+    return`<tr${won?' style="background:#F0FDF4"':''}>
+    <td style="font-weight:600">${won?'⭐ ':''}${esc(c.name)}</td>
     <td>${(c.duration||0).toFixed(0)}s</td>
     <td><span class="scorep" style="background:${bg};color:${fg}">${c.score!=null?Math.round(c.score):'—'}</span></td>
-    <td style="max-width:230px;font-size:12px;color:var(--t3)" title="${esc(c.score_reason||'')}">${esc((c.score_reason||'').slice(0,70))}</td>
+    <td style="max-width:200px;font-size:12px;color:var(--t3)" title="${esc(c.score_reason||'')}">${esc((c.score_reason||'').slice(0,60))}</td>
     <td>${c.views!=null?fmtN(c.views):'—'}</td>
     <td>${c.gmv!=null?'$'+fmtN(c.gmv):'—'}</td>
     <td>${c.published_at?'✓':''}</td>
-    <td style="white-space:nowrap">${c.output_path?`<a class="lnk" href="${furl(c.output_path)}" target="_blank">ver</a> · `:''}<span class="lnk" onclick='cpTxt(${JSON.stringify(c.caption||"")},this)'>caption</span>${c.published_at?'':` · <span class="lnk" onclick="fyPub(${c.id})">publicado</span>`}</td>
+    <td style="white-space:nowrap">${c.output_path?`<a class="lnk" href="${furl(c.output_path)}" target="_blank">ver</a> · `:''}<span class="lnk" onclick='cpTxt(${JSON.stringify(c.caption||"")},this)'>caption</span> · <span class="lnk" style="color:var(--g,#10B981)" title="Genera hooks nuevos del ángulo de este video para su persona" onclick="fyDouble(${c.id})">⭐ doblar</span>${c.published_at?'':` · <span class="lnk" onclick="fyPub(${c.id})">publicado</span>`}</td>
   </tr>`;}).join('');
-  $('fy-combos-box').innerHTML=F.combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos. Cuando tus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
+  $('fy-combos-box').innerHTML=F.combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="font-size:11px;color:var(--t4);margin-top:6px">⭐ <b>doblar</b> = la IA genera hooks nuevos del ángulo de ese video para su buyer persona (úsalo con los que vendieron).</div>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos. Cuando tus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
 
   // Paso 4 · cola de hoy
   $('fy-queue-box').innerHTML=F.queue.length?`<div class="qwrap">${F.queue.map(q=>{
@@ -1253,6 +1254,14 @@ async function fyClear(){
 async function fyPub(id){
   try{await api('POST',`/api/factory/combos/${id}/published`);await loadFactory();}
   catch(e){alert(e.message);}
+}
+async function fyDouble(id){
+  if(!confirm('Doblar al ganador: la IA generará hooks nuevos del ángulo de este video para su buyer persona (se añaden como pendientes en su pestaña). ¿Continuar?'))return;
+  try{
+    const r=await api('POST','/api/factory/combos/double',{combo_id:id});
+    if(r&&r.persona)F.activePersona=r.persona;
+    await loadFactory();
+  }catch(e){alert(e.message);}
 }
 async function fyMetrics(){
   const inp=$('fy-csv');const file=inp?.files?.[0];

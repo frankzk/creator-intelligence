@@ -292,6 +292,14 @@ CUERPOS (varía la estructura entre ellos):
 CTAs (4-8s): instrucción de compra clara y natural; menciona tocar la canasta naranja.
 """
 
+CONTENT_PILLARS = """PILARES DE CONTENIDO (cubre VARIOS; un ángulo de hook por pilar):
+1. Autoridad / prueba social — figura conocida, experto, "todos en mi FYP", reseñas reales.
+2. Educación — el ingrediente / cómo funciona / por qué este y no otro.
+3. Resultados / transformación — antes vs después, "a las 2 semanas noté…".
+4. Demostración / unboxing / reacción — probarlo en cámara, primera vez, textura.
+5. Estilo de vida / ritual — meterlo en la rutina, hábito fácil, "ya no puedo sin esto".
+6. Urgencia / escasez — se agota, oferta hoy, "ojalá no lo hayas comprado ya"."""
+
 AGGRESSIVE_SELL = """MODO VENTA AGRESIVA (máxima conversión — supervisado por el usuario):
 - Pattern interrupt brutal en el primer segundo: detén el scroll sí o sí.
 - Ataca el dolor en carne viva, sin rodeos; nómbralo como lo vive la persona.
@@ -378,6 +386,7 @@ def build_module_scripts(product_name: str, sources: list[dict] | None = None,
         + ctx
         + TIKTOK_METHODOLOGY
         + "\n\n" + AGGRESSIVE_SELL
+        + "\n\n" + CONTENT_PILLARS
         + f"""
 
 {persona_task}
@@ -386,7 +395,8 @@ TAREA 2 — Mapa de ángulos: 4-6 ángulos de venta para este persona/producto, 
 (de los videos si los hay, o tu razonamiento) y la fórmula de hook que usan.
 
 TAREA 3 — Guiones modulares para grabar como VOZ EN OFF, para ESE ÚNICO buyer persona:
-- 5 hooks (3-6s, 10-16 palabras), cada uno con un ángulo DIFERENTE (aplica metodología de HOOKS)
+- 5 hooks (3-6s, 10-16 palabras): genera uno por cada PILAR de contenido distinto (cubre 5
+  de los 6 pilares de arriba). En "angle" pon el nombre del PILAR (ej. "Urgencia / escasez").
 - 3 cuerpos (15-25s, 40-65 palabras), VARÍA la estructura entre ellos: uno "Doble Caída",
   uno fórmula directa estilo Flor de Cuba, uno demostración/prueba social (ver metodología)
 - 3 CTAs (4-8s, 12-22 palabras), mencionan tocar la canasta naranja
@@ -430,6 +440,37 @@ Devuelve SOLO JSON:
         max_tokens=8000,
     ))
     return result if isinstance(result, dict) else {}
+
+
+# ─── FACTORY: DOBLAR AL GANADOR (variaciones de un hook que vendió) ──────────
+
+def generate_hook_variations(product_name: str, persona: str, persona_detail: str,
+                             winner_text: str, winner_angle: str,
+                             image_path: str | None = None, n: int = 5) -> list[dict]:
+    """A partir de un HOOK que ya vendió, genera N hooks nuevos que explotan el
+    MISMO ángulo ganador con wording fresco. Devuelve scripts tipo hook."""
+    system = ("Eres estratega de marketing de respuesta directa para TikTok Shop "
+              "(hispanos en USA). Respondes SOLO con JSON válido.")
+    prompt = (
+        f"Producto (pista): {_safe(product_name, 80)}. Buyer persona: {_safe(persona, 120)}. "
+        f"{_safe(persona_detail, 300)}\n\n"
+        f"Este HOOK YA GENERÓ VENTAS (ángulo: {_safe(winner_angle, 60)}):\n"
+        f"«{_safe(winner_text, 300)}»\n\n"
+        + TIKTOK_METHODOLOGY + "\n\n" + AGGRESSIVE_SELL + "\n\n"
+        f"Genera {n} HOOKS NUEVOS que exploten EL MISMO ángulo ganador con variaciones frescas "
+        "(distinto wording y entrada, mismo gatillo psicológico que funcionó). 3-6s, 10-16 "
+        "palabras, voz en off, autocontenidos, sin presentar el producto todavía.\n"
+        'Devuelve SOLO JSON: {"scripts":[{"type":"hook","persona":"'
+        + persona.replace('"', "'") +
+        '","angle":"...","text":"...","overlay_text":"...","est_seconds":4.5}]}'
+    )
+    content = [prompt]
+    if image_path and os.path.exists(image_path):
+        content = [_image_block(image_path), {"type": "text", "text": "Foto del producto.\n\n" + prompt}]
+    result = _parse_json_loose(_call(
+        messages=[{"role": "user", "content": content}], system=system, max_tokens=2000))
+    scripts = result.get("scripts", []) if isinstance(result, dict) else (result if isinstance(result, list) else [])
+    return [s for s in scripts if isinstance(s, dict) and s.get("type") == "hook" and (s.get("text") or "").strip()]
 
 
 # ─── FACTORY: INVESTIGACIÓN DE BUYER PERSONAS (web + visión) ─────────────────
