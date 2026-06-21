@@ -316,6 +316,7 @@ body{background:var(--mesh);background-attachment:fixed}
 .stg-row select:disabled,.stg-row input:disabled{opacity:.55}
 .stg-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stg-st{font-size:11px;text-align:center}
+.dur-auto{font-size:12px;color:var(--t2);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -740,7 +741,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',prodImgs:[],advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:'',activePersona:'',stage:[]};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',prodImgs:[],advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:'',activePersona:'',stage:[],durAuto:true};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -917,11 +918,10 @@ function renderFyForm(){
   const paso3=`
     <div class="fy-row">
       <div class="fg"><label class="fl">Producto</label><input class="fi" value="${esc(F.prod)}" oninput="F.prod=this.value;localStorage.setItem('fy_prod',this.value)" placeholder="ej. Rosemary Shampoo"></div>
-      <div class="fg" style="max-width:110px"><label class="fl">Dur. mín (s)</label><input class="fi" type="number" value="${F.minD}" oninput="F.minD=+this.value"></div>
-      <div class="fg" style="max-width:110px"><label class="fl">Dur. máx (s)</label><input class="fi" type="number" value="${F.maxD}" oninput="F.maxD=+this.value"></div>
+      <div class="fg" style="max-width:420px"><label class="fl">Duración de los videos</label><div id="fy-dur-row">${renderDurControls()}</div></div>
       <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" onclick="fyGen()">⚡ Generar combinaciones</button>
     </div>
-    <div class="fy-hint">Cada video = hook + cuerpo + CTA de la misma persona. Si un cuerpo no cabe en la duración, la IA lo recorta sola y regenera. Claude puntúa cada video (0–100) y deja el caption listo.
+    <div class="fy-hint">Cada video = hook + cuerpo + CTA de la misma persona. Con <b>duración automática</b> se crean todas las combinaciones posibles según tus clips; si la acotas a mano y un cuerpo no cabe, la IA lo recorta y regenera. Claude puntúa cada video (0–100) y deja el caption listo.
       &nbsp;·&nbsp;<span class="lnk" onclick="fyRerender()">↻ re-render módulos</span>
       &nbsp;·&nbsp;<span class="lnk" onclick="window.open('/api/factory/manifest')">⬇ manifest CSV</span>
       &nbsp;·&nbsp;<span class="lnk" style="color:var(--r)" onclick="fyClear()">borrar combos</span></div>
@@ -1294,6 +1294,7 @@ function renderFyLists(){
     <td style="white-space:nowrap">${c.output_path?`<a class="lnk" href="${furl(c.output_path)}" target="_blank">ver</a> · `:''}<span class="lnk" onclick='cpTxt(${JSON.stringify(c.caption||"")},this)'>caption</span> · <span class="lnk" style="color:var(--g,#10B981)" title="Genera hooks nuevos del ángulo de este video para su persona" onclick="fyDouble(${c.id})">⭐ doblar</span>${c.published_at?'':` · <span class="lnk" onclick="fyPub(${c.id})">publicado</span>`}</td>
   </tr>`;}).join('');
   $('fy-combos-box').innerHTML=combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="font-size:11px;color:var(--t4);margin-top:6px">⭐ <b>doblar</b> = la IA genera hooks nuevos del ángulo de ese video para su buyer persona (úsalo con los que vendieron).</div>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos de esta persona. Cuando sus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
+  if(F.durAuto){const dr=$('fy-dur-row');if(dr)dr.innerHTML=renderDurControls();}  // mantén vivo el rango automático
 
   // Paso 4 · cola de hoy (de la persona activa)
   $('fy-queue-box').innerHTML=queue.length?`<div class="qwrap">${queue.map(q=>{
@@ -1367,9 +1368,35 @@ async function fyDelMod(id,label){
   try{await api('DELETE',`/api/factory/modules/${id}`);await loadFactory();}
   catch(e){alert(e.message);}
 }
+// ── Duración: automática (según los clips) o manual ──
+function fyAutoRange(){
+  const m=sList(F.mods).filter(x=>x.status==='ready');
+  const dur=t=>m.filter(x=>x.type===t).map(x=>x.duration||0);
+  const h=dur('hook'),b=dur('body'),c=dur('cta');
+  if(!h.length||!b.length||!c.length)return null;
+  return {min:Math.min(...h)+Math.min(...b)+Math.min(...c),max:Math.max(...h)+Math.max(...b)+Math.max(...c)};
+}
+function renderDurControls(){
+  if(F.durAuto){
+    const r=fyAutoRange();
+    const txt=r?`Automática — tus videos saldrán de <b>${Math.round(r.min)}s</b> a <b>${Math.round(r.max)}s</b> (según tus clips)`
+              :'Automática — se calcula sola cuando tus módulos estén listos';
+    return`<div class="dur-auto">⚙️ ${txt} · <span class="lnk" onclick="fyDurToggle()">acotar a mano</span></div>`;
+  }
+  return`<div class="fy-row" style="gap:8px;align-items:center">
+    <input class="fi" style="max-width:84px" type="number" value="${F.minD}" oninput="F.minD=+this.value" title="mínimo (s)">
+    <span style="color:var(--t4);font-size:12px">a</span>
+    <input class="fi" style="max-width:84px" type="number" value="${F.maxD}" oninput="F.maxD=+this.value" title="máximo (s)">
+    <span style="color:var(--t4);font-size:12px">seg</span>
+    <span class="lnk" onclick="fyDurToggle()">usar automática</span>
+  </div>`;
+}
+function fyDurToggle(){F.durAuto=!F.durAuto;const e=$('fy-dur-row');if(e)e.innerHTML=renderDurControls();}
 async function fyGen(){
   if(!F.camp){alert('Selecciona una campaña');return;}
-  try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,persona:fyEffPersona(),product_name:F.prod,min_duration:F.minD,max_duration:F.maxD});await loadFactory();}
+  let mn=F.minD,mx=F.maxD;
+  if(F.durAuto){const r=fyAutoRange();if(r){mn=Math.max(1,Math.floor(r.min)-1);mx=Math.ceil(r.max)+1;}else{mn=1;mx=100000;}}
+  try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,persona:fyEffPersona(),product_name:F.prod,min_duration:mn,max_duration:mx});await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyRerender(){
