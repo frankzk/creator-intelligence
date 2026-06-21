@@ -628,16 +628,33 @@ async def factory_list_scripts(campaign_id: int):
 
 
 class ScriptPatch(BaseModel):
-    status: str  # pending | recorded | discarded
+    status: Optional[str] = None       # pending | recorded | discarded
+    text: Optional[str] = None         # editar el guion a mano
+    overlay_text: Optional[str] = None # editar el texto en pantalla
 
 
 @app.patch("/api/factory/scripts/{script_id}")
 async def factory_patch_script(script_id: int, req: ScriptPatch):
-    if req.status not in ("pending", "recorded", "discarded"):
-        raise HTTPException(400, "status inválido")
+    sets, params = [], []
+    if req.status is not None:
+        if req.status not in ("pending", "recorded", "discarded"):
+            raise HTTPException(400, "status inválido")
+        sets.append("status=?"); params.append(req.status)
+    if req.text is not None:
+        t = req.text.strip()
+        if not t:
+            raise HTTPException(400, "El guion no puede quedar vacío")
+        sets.append("text=?"); params.append(t)
+    if req.overlay_text is not None:
+        sets.append("overlay_text=?"); params.append(req.overlay_text.strip())
+    if not sets:
+        raise HTTPException(400, "Nada que actualizar")
     conn = get_conn()
-    conn.execute("UPDATE factory_scripts SET status=? WHERE id=?",
-                 (req.status, script_id))
+    row = conn.execute("SELECT id FROM factory_scripts WHERE id=?", (script_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Guion no encontrado")
+    conn.execute(f"UPDATE factory_scripts SET {', '.join(sets)} WHERE id=?", (*params, script_id))
     conn.commit()
     conn.close()
     return {"status": "ok"}
@@ -835,6 +852,7 @@ class GenerateCombosRequest(BaseModel):
     product_name: str = ""
     min_duration: float = 25.0
     max_duration: float = 40.0
+    mode: str = "focused"       # focused = varía 1 pieza a la vez | all = todas
 
 
 @app.post("/api/factory/combos/generate")
@@ -852,8 +870,10 @@ async def factory_generate_combos(req: GenerateCombosRequest):
             raise HTTPException(400, "La IA está recortando módulos — las combinaciones se generarán solas al terminar")
         quien = f" para «{req.persona}»" if req.persona else ""
         raise HTTPException(400, f"Faltan módulos listos{quien} de tipo: {', '.join(missing)}")
-    vf.kick_combos(req.campaign_id, req.persona, req.product_name, req.min_duration, req.max_duration)
-    return {"status": "generating", "ready_modules": counts}
+    mode = req.mode if req.mode in ("focused", "all") else "focused"
+    vf.kick_combos(req.campaign_id, req.persona, req.product_name,
+                   req.min_duration, req.max_duration, mode)
+    return {"status": "generating", "ready_modules": counts, "mode": mode}
 
 
 class EditModuleRequest(BaseModel):

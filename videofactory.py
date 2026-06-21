@@ -499,7 +499,8 @@ def _edit_worker(module_id: int, target: float | None, regen: dict | None):
             if st and st["status"] == "ready":
                 kick_combos(regen["campaign_id"], regen.get("persona", ""),
                             regen.get("product_name", ""),
-                            regen["min_dur"], regen["max_dur"])
+                            regen["min_dur"], regen["max_dur"],
+                            regen.get("mode", "focused"))
     except Exception as exc:
         print(f"[factory/edit] {label}: {exc}")
         _set_edit_note(f"{label}: {str(exc)[:200]}")
@@ -515,21 +516,39 @@ def _edit_worker(module_id: int, target: float | None, regen: dict | None):
 # La compatibilidad ahora la da la persona: cada combo solo une módulos de la
 # misma persona (cada persona es un mini-proyecto). Ya no se usan tags de matriz.
 
-def kick_combos(campaign_id: int, persona: str, product_name: str, min_dur: float, max_dur: float):
+def _focused_triples(by_type: dict) -> list:
+    """Testeo enfocado: una combinación base + variar UNA pieza a la vez.
+    Da hooks+cuerpos+CTAs−2 videos (no el producto cartesiano), con señal limpia
+    de qué hook / cuerpo / CTA gana. La base = primer módulo listo de cada tipo."""
+    H, B, C = by_type["hook"], by_type["body"], by_type["cta"]
+    if not (H and B and C):
+        return []
+    bh, bb, bc = H[0], B[0], C[0]
+    triples = [(bh, bb, bc)]
+    triples += [(h, bb, bc) for h in H[1:]]   # varía el hook
+    triples += [(bh, b, bc) for b in B[1:]]   # varía el cuerpo
+    triples += [(bh, bb, c) for c in C[1:]]   # varía el CTA
+    return triples
+
+
+def kick_combos(campaign_id: int, persona: str, product_name: str,
+                min_dur: float, max_dur: float, mode: str = "focused"):
     global _combos_running
     with _combos_lock:
         if _combos_running:
             return
         _combos_running = True
     threading.Thread(
-        target=_combos_worker, args=(campaign_id, persona, product_name, min_dur, max_dur), daemon=True
+        target=_combos_worker,
+        args=(campaign_id, persona, product_name, min_dur, max_dur, mode), daemon=True
     ).start()
 
 
-def _combos_worker(campaign_id: int, persona: str, product_name: str, min_dur: float, max_dur: float):
+def _combos_worker(campaign_id: int, persona: str, product_name: str,
+                   min_dur: float, max_dur: float, mode: str = "focused"):
     global _combos_running
     try:
-        _generate_combos(campaign_id, persona, product_name, min_dur, max_dur)
+        _generate_combos(campaign_id, persona, product_name, min_dur, max_dur, mode)
     except Exception as exc:
         print(f"[factory/combos] fatal: {exc}")
     finally:
@@ -537,26 +556,36 @@ def _combos_worker(campaign_id: int, persona: str, product_name: str, min_dur: f
             _combos_running = False
 
 
-def _generate_combos(campaign_id: int, persona: str, product_name: str, min_dur: float, max_dur: float):
+def _generate_combos(campaign_id: int, persona: str, product_name: str,
+                     min_dur: float, max_dur: float, mode: str = "focused"):
     from analyzer import score_and_caption_combos
 
     conn = get_conn()
     # Solo módulos listos de ESTA persona (cada persona es un mini-proyecto)
     ready = conn.execute(
         "SELECT * FROM factory_modules WHERE status='ready' AND campaign_id=? "
-        "AND COALESCE(persona,'')=?",
+        "AND COALESCE(persona,'')=? ORDER BY id",
         (campaign_id, persona or ""),
     ).fetchall()
     by_type = {"hook": [], "body": [], "cta": []}
     for m in ready:
         by_type[m["type"]].append(dict(m))
 
+    if mode == "all":
+        triples = list(cartesian(by_type["hook"], by_type["body"], by_type["cta"]))
+    else:
+        triples = _focused_triples(by_type)
+
     existing = {r["name"] for r in conn.execute("SELECT name FROM factory_combos").fetchall()}
     new_combos = []
     totals = []
+    seen = set()
     skipped_exist = skipped_dur = 0
-    for h, b, c in cartesian(by_type["hook"], by_type["body"], by_type["cta"]):
+    for h, b, c in triples:
         name = f"{h['label']}-{b['label']}-{c['label']}"
+        if name in seen:
+            continue
+        seen.add(name)
         total = h["duration"] + b["duration"] + c["duration"]
         totals.append(total)
         if name in existing:
@@ -587,7 +616,7 @@ def _generate_combos(campaign_id: int, persona: str, product_name: str, min_dur:
             for b in long_bodies:
                 kick_edit(b["id"], target_seconds=target, regen={
                     "campaign_id": campaign_id, "persona": persona,
-                    "product_name": product_name,
+                    "product_name": product_name, "mode": mode,
                     "min_dur": min_dur, "max_dur": max_dur,
                 })
             _set_combos_note(

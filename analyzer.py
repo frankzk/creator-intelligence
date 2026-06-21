@@ -312,6 +312,17 @@ AGGRESSIVE_SELL = """MODO VENTA AGRESIVA (máxima conversión — supervisado po
   (cura, curar, garantizado, milagro, FDA, diagnóstico, adelgaza). Vende durísimo SIN esas palabras."""
 
 
+POLICY_CHECK = """CHEQUEO DE POLÍTICAS TIKTOK (marca riesgo por guion, NO reescribas):
+Para CADA guion evalúa el riesgo de que TikTok lo penalice o tumbe la cuenta y devuelve:
+- "risk": "alta" | "media" | "none"
+- "risk_reason": frase corta del porqué (vacía si none).
+Marca riesgo ALTA si: promete CURAR/tratar/prevenir una enfermedad (cáncer, VPH/HPV, ETS,
+diabetes…), garantía absoluta de resultado, claim médico como hecho, antes/después médico,
+términos como cura/curar/garantizado/milagro/FDA/diagnóstico. Riesgo MEDIA: claims de
+salud/peso suaves, superlativos fuertes ("el mejor", "100%"), urgencia falsa. none: sin claims
+sensibles. Sé estricto con productos de salud."""
+
+
 def _image_block(image_path: str) -> dict:
     """Bloque de imagen base64 para visión (jpg/png/webp)."""
     ext = Path(image_path).suffix.lower()
@@ -387,6 +398,7 @@ def build_module_scripts(product_name: str, sources: list[dict] | None = None,
         + TIKTOK_METHODOLOGY
         + "\n\n" + AGGRESSIVE_SELL
         + "\n\n" + CONTENT_PILLARS
+        + "\n\n" + POLICY_CHECK
         + f"""
 
 {persona_task}
@@ -412,15 +424,16 @@ REGLAS DE COMBINABILIDAD (crítico — los módulos se combinan al azar DENTRO d
 - est_seconds: palabras ÷ 2.6, redondeado a 1 decimal.
 - El campo "persona" de TODO guion (hooks, cuerpos y CTAs) = el nombre EXACTO de ESE único
   buyer persona. No uses "" ni mezcles personas: todo pertenece a esta persona.
+- Cada guion incluye "risk" y "risk_reason" según el CHEQUEO DE POLÍTICAS de arriba.
 
 Devuelve SOLO JSON:
 {{
  "personas": [{{"name":"...","pain":"...","desire":"...","objection":"..."}}],
  "angle_map": [{{"angle":"...","evidence":"...","hook_formula":"plantilla con [X]"}}],
  "scripts": [
-   {{"type":"hook","persona":"...","angle":"...","text":"...","overlay_text":"...","est_seconds":4.5}},
-   {{"type":"body","persona":"...","angle":"...","text":"...","overlay_text":"","est_seconds":20.0}},
-   {{"type":"cta","persona":"...","angle":"...","text":"...","overlay_text":"...","est_seconds":6.0}}
+   {{"type":"hook","persona":"...","angle":"...","text":"...","overlay_text":"...","est_seconds":4.5,"risk":"none","risk_reason":""}},
+   {{"type":"body","persona":"...","angle":"...","text":"...","overlay_text":"","est_seconds":20.0,"risk":"media","risk_reason":"claim de salud suave"}},
+   {{"type":"cta","persona":"...","angle":"...","text":"...","overlay_text":"...","est_seconds":6.0,"risk":"none","risk_reason":""}}
  ]
 }}"""
     )

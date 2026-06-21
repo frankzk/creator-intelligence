@@ -189,6 +189,10 @@ def init_db():
     script_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_scripts)").fetchall()}
     if "persona" not in script_cols:
         conn.execute("ALTER TABLE factory_scripts ADD COLUMN persona TEXT DEFAULT ''")
+    if "risk" not in script_cols:
+        conn.execute("ALTER TABLE factory_scripts ADD COLUMN risk TEXT DEFAULT ''")
+    if "risk_reason" not in script_cols:
+        conn.execute("ALTER TABLE factory_scripts ADD COLUMN risk_reason TEXT DEFAULT ''")
     conn.commit()
     conn.close()
 

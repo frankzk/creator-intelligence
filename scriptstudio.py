@@ -303,12 +303,16 @@ def _generate(campaign_id: int, product_name: str, brief: str, image_path: str |
             est = round(float(s.get("est_seconds") or 0), 1)
         except (TypeError, ValueError):
             est = 0.0
+        risk = str(s.get("risk") or "").strip().lower()
+        if risk not in ("alta", "media"):
+            risk = ""   # 'none'/desconocido → sin marca
         conn.execute("""
             INSERT INTO factory_scripts
-                (campaign_id, type, persona, angle, text, overlay_text, est_seconds)
-            VALUES (?,?,?,?,?,?,?)
+                (campaign_id, type, persona, angle, text, overlay_text, est_seconds, risk, risk_reason)
+            VALUES (?,?,?,?,?,?,?,?,?)
         """, (campaign_id, stype, str(s.get("persona") or "").strip(),
               str(s.get("angle") or "").strip(), text,
-              str(s.get("overlay_text") or "").strip(), est))
+              str(s.get("overlay_text") or "").strip(), est,
+              risk, str(s.get("risk_reason") or "").strip() if risk else ""))
     conn.commit()
     conn.close()

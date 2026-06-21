@@ -317,6 +317,10 @@ body{background:var(--mesh);background-attachment:fixed}
 .stg-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stg-st{font-size:11px;text-align:center}
 .dur-auto{font-size:12px;color:var(--t2);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;line-height:1.5}
+.risk{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
+.risk.alta{background:var(--rl);color:var(--r)}
+.risk.media{background:var(--al);color:var(--a)}
+.risk-note{font-size:11px;color:var(--r);background:var(--rl);border-radius:7px;padding:6px 9px;margin-top:7px;line-height:1.45}
 </style>
 </head>
 <body>
@@ -741,7 +745,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',prodImgs:[],advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:'',activePersona:'',stage:[],durAuto:true};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',prodImgs:[],advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:'',activePersona:'',stage:[],durAuto:true,testMode:'focused'};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -917,11 +921,17 @@ function renderFyForm(){
 
   const paso3=`
     <div class="fy-row">
-      <div class="fg"><label class="fl">Producto</label><input class="fi" value="${esc(F.prod)}" oninput="F.prod=this.value;localStorage.setItem('fy_prod',this.value)" placeholder="ej. Rosemary Shampoo"></div>
-      <div class="fg" style="max-width:420px"><label class="fl">Duración de los videos</label><div id="fy-dur-row">${renderDurControls()}</div></div>
+      <div class="fg" style="max-width:190px"><label class="fl">Producto</label><input class="fi" value="${esc(F.prod)}" oninput="F.prod=this.value;localStorage.setItem('fy_prod',this.value)" placeholder="ej. Rosemary Shampoo"></div>
+      <div class="fg" style="max-width:360px"><label class="fl">Duración de los videos</label><div id="fy-dur-row">${renderDurControls()}</div></div>
+      <div class="fg" style="max-width:230px"><label class="fl">Modo de testeo</label>
+        <select class="fi" onchange="F.testMode=this.value;fyRefreshTestHint()">
+          <option value="focused"${F.testMode!=='all'?' selected':''}>Enfocado (1 cambio a la vez)</option>
+          <option value="all"${F.testMode==='all'?' selected':''}>Todas las combinaciones</option>
+        </select></div>
       <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" onclick="fyGen()">⚡ Generar combinaciones</button>
     </div>
-    <div class="fy-hint">Cada video = hook + cuerpo + CTA de la misma persona. Con <b>duración automática</b> se crean todas las combinaciones posibles según tus clips; si la acotas a mano y un cuerpo no cabe, la IA lo recorta y regenera. Claude puntúa cada video (0–100) y deja el caption listo.
+    <div class="fy-hint" id="fy-test-hint">${fyTestHint()}</div>
+    <div class="fy-hint">Cada video = hook + cuerpo + CTA de la misma persona. Claude puntúa cada video (0–100) y deja el caption listo. Si acotas la duración a mano y un cuerpo no cabe, la IA lo recorta y regenera.
       &nbsp;·&nbsp;<span class="lnk" onclick="fyRerender()">↻ re-render módulos</span>
       &nbsp;·&nbsp;<span class="lnk" onclick="window.open('/api/factory/manifest')">⬇ manifest CSV</span>
       &nbsp;·&nbsp;<span class="lnk" style="color:var(--r)" onclick="fyClear()">borrar combos</span></div>
@@ -1084,6 +1094,15 @@ async function fyScriptSt(id,st){
   try{await api('PATCH','/api/factory/scripts/'+id,{status:st});await loadFactory();}
   catch(e){alert(e.message);}
 }
+async function fyEditScript(id){
+  const s=F.scripts.find(x=>x.id===id);if(!s)return;
+  const t=prompt('Edita el guion (voz en off). Cambia palabras o tono a tu gusto:',s.text||'');
+  if(t===null)return;const txt=t.trim();
+  if(!txt){alert('El guion no puede quedar vacío');return;}
+  if(txt===s.text)return;
+  try{await api('PATCH','/api/factory/scripts/'+id,{text:txt});await loadFactory();}
+  catch(e){alert(e.message);}
+}
 
 // ── Subida masiva: suelta todos los clips y clasifica cada uno antes de subir ──
 const VID_EXTS=['mp4','mov','m4v','webm','mkv'];
@@ -1236,11 +1255,13 @@ function renderFyStudio(){
   if(sc){
     const scriptCard=s=>{
       const cls=s.type==='hook'?'h':s.type==='body'?'b':'c';
+      const risk=(s.risk==='alta'||s.risk==='media')?`<span class="risk ${s.risk}" title="${esc(s.risk_reason||'Revisar políticas de TikTok')}">⚠️ ${s.risk==='alta'?'riesgo':'revisar'}</span>`:'';
       return`<div class="sc-card ${cls}${s.status==='recorded'?' rec':''}">
-        <div class="sc-top"><span class="sc-ang">${esc(s.angle||'—')}</span><span class="sc-dur">~${(s.est_seconds||0).toFixed(0)}s</span></div>
+        <div class="sc-top"><span class="sc-ang">${esc(s.angle||'—')}</span>${risk}<span class="sc-dur">~${(s.est_seconds||0).toFixed(0)}s</span></div>
         <div class="sc-txt">${esc(s.text)}</div>
         ${s.overlay_text?`<div class="sc-ov">“${esc(s.overlay_text)}”</div>`:''}
-        <div class="sc-act"><button onclick='cpTxt(${JSON.stringify(s.text)},this)'>📋 copiar</button>${s.status==='pending'?`<button class="done" onclick="fyScriptSt(${s.id},'recorded')">✓ grabado</button><button onclick="fyScriptSt(${s.id},'discarded')">descartar</button>`:`<button onclick="fyScriptSt(${s.id},'pending')">↩ pendiente</button>`}</div>
+        ${(s.risk==='alta'&&s.risk_reason)?`<div class="risk-note">⚠️ ${esc(s.risk_reason)} — suavízalo antes de publicar.</div>`:''}
+        <div class="sc-act"><button onclick='cpTxt(${JSON.stringify(s.text)},this)'>📋 copiar</button><button onclick="fyEditScript(${s.id})">✏️ editar</button>${s.status==='pending'?`<button class="done" onclick="fyScriptSt(${s.id},'recorded')">✓ grabado</button><button onclick="fyScriptSt(${s.id},'discarded')">descartar</button>`:`<button onclick="fyScriptSt(${s.id},'pending')">↩ pendiente</button>`}</div>
       </div>`;};
     const grid=items=>`<div class="modgrid">${['hook','body','cta'].map(t=>{
       const its=items.filter(s=>s.type===t);
@@ -1295,6 +1316,7 @@ function renderFyLists(){
   </tr>`;}).join('');
   $('fy-combos-box').innerHTML=combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="font-size:11px;color:var(--t4);margin-top:6px">⭐ <b>doblar</b> = la IA genera hooks nuevos del ángulo de ese video para su buyer persona (úsalo con los que vendieron).</div>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos de esta persona. Cuando sus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
   if(F.durAuto){const dr=$('fy-dur-row');if(dr)dr.innerHTML=renderDurControls();}  // mantén vivo el rango automático
+  fyRefreshTestHint();
 
   // Paso 4 · cola de hoy (de la persona activa)
   $('fy-queue-box').innerHTML=queue.length?`<div class="qwrap">${queue.map(q=>{
@@ -1392,11 +1414,20 @@ function renderDurControls(){
   </div>`;
 }
 function fyDurToggle(){F.durAuto=!F.durAuto;const e=$('fy-dur-row');if(e)e.innerHTML=renderDurControls();}
+function fyTestHint(){
+  const m=sList(F.mods).filter(x=>x.status==='ready');
+  const n=t=>m.filter(x=>x.type===t).length;
+  const h=n('hook'),b=n('body'),c=n('cta');
+  if(F.testMode==='all'){const tot=h*b*c;return `🎲 <b>Todas:</b> ${tot||'—'} videos (todas las mezclas posibles). Más volumen, señal más lenta.`;}
+  const tot=(h&&b&&c)?(h+b+c-2):0;
+  return `🎯 <b>Enfocado:</b> ~${tot||'—'} videos — fija una base y cambia 1 pieza a la vez, así descubres rápido qué hook, cuerpo y CTA vende más.`;
+}
+function fyRefreshTestHint(){const e=$('fy-test-hint');if(e)e.innerHTML=fyTestHint();}
 async function fyGen(){
   if(!F.camp){alert('Selecciona una campaña');return;}
   let mn=F.minD,mx=F.maxD;
   if(F.durAuto){const r=fyAutoRange();if(r){mn=Math.max(1,Math.floor(r.min)-1);mx=Math.ceil(r.max)+1;}else{mn=1;mx=100000;}}
-  try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,persona:fyEffPersona(),product_name:F.prod,min_duration:mn,max_duration:mx});await loadFactory();}
+  try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,persona:fyEffPersona(),product_name:F.prod,min_duration:mn,max_duration:mx,mode:F.testMode||'focused'});await loadFactory();}
   catch(e){alert(e.message);}
 }
 async function fyRerender(){
