@@ -307,6 +307,15 @@ body{background:var(--mesh);background-attachment:fixed}
 .theme-btn{width:34px;height:34px;border-radius:11px;border:1px solid var(--bd);background:var(--card);color:var(--t2);cursor:pointer;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;flex:none;transition:all .15s;backdrop-filter:var(--blur)}
 .theme-btn:hover{border-color:var(--p);transform:translateY(-1px);box-shadow:var(--shadow)}
 .sb-hdr{display:flex;align-items:center;gap:8px}
+/* ── Subida masiva (paso 2) ── */
+.dropzone{border:2px dashed var(--bd);border-radius:var(--rad);padding:22px;text-align:center;cursor:pointer;color:var(--t3);transition:all .15s;background:var(--card);backdrop-filter:var(--blur)}
+.dropzone:hover,.dropzone.drag{border-color:var(--p);background:var(--pl);color:var(--p)}
+.stg-hd{font-size:12px;color:var(--t3);margin:14px 0 9px}
+.stg-row{display:grid;grid-template-columns:1.5fr 95px 1.5fr 1.4fr 70px 22px;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--bdl);border-radius:9px;margin-bottom:7px;background:var(--card)}
+.stg-row select,.stg-row input{padding:6px 8px;border:1px solid var(--bd);border-radius:7px;font-size:12px;background:var(--field);color:var(--t);min-width:0;width:100%;outline:none}
+.stg-row select:disabled,.stg-row input:disabled{opacity:.55}
+.stg-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stg-st{font-size:11px;text-align:center}
 </style>
 </head>
 <body>
@@ -731,7 +740,7 @@ async function subProduct(){
 }
 
 /* ── Fábrica de creativos ── */
-const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',prodImgs:[],advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:'',activePersona:''};
+const F={camps:[],camp:+localStorage.getItem('fy_camp')||null,mods:[],combos:[],queue:[],attr:[],research:[],scripts:[],angles:[],personas:[],personaCandidates:[],status:{},form:{type:'hook',tags:'',overlay:'',script:''},prod:localStorage.getItem('fy_prod')||'',minD:25,maxD:40,poll:null,upBusy:false,manual:null,trOpen:null,trs:{},prodImg:'',prodImgU:'',prodImgs:[],advOpen:false,gpOpen:{},ctxOpen:false,_defOpen:'',activePersona:'',stage:[]};
 const MOD_ST={uploaded:'en cola',normalizing:'normalizando',transcribing:'transcribiendo',transcribed:'en cola de render',rendering:'renderizando',ready:'listo',error:'error'};
 const TYPE_ES={hook:'Hook',body:'Cuerpo',cta:'CTA'};
 function furl(p){return p?'/'+String(p).replace(/\\/g,'/').replace(/^\/+/,''):'';}
@@ -763,6 +772,7 @@ function fySyncPhoto(){
   F.prodImgs=gal;
   // la persona activa filtra TODO el embudo; se recuerda por campaña
   F.activePersona=F.camp?(localStorage.getItem('fy_persona_'+F.camp)||''):'';
+  F.stage=[];   // los clips en cola de subida no cruzan campañas
 }
 function fySetPersona(key){F.activePersona=key||'';if(F.camp)localStorage.setItem('fy_persona_'+F.camp,F.activePersona);}
 function fyShort(s){const w=String(s||'').split(/[\s,]+/).filter(Boolean);return (w.slice(0,2).join(' ')||s||'').slice(0,22);}
@@ -894,20 +904,14 @@ function renderFyForm(){
     </div>`;
 
   const paso2=`
-    <div class="fy-row">
-      <div class="fg" style="max-width:130px"><label class="fl">Tipo</label>
-        <select class="fi" id="fy-type" onchange="F.form.type=this.value;F.form.script='';renderFyLists()">
-          <option value="hook">Hook</option><option value="body">Cuerpo</option><option value="cta">CTA</option>
-        </select></div>
-      <div class="fg" style="max-width:300px"><label class="fl">Guion que grabaste</label>
-        <select class="fi" id="fy-script" onchange="F.form.script=this.value"><option value="">— sin guion —</option></select></div>
-      <div class="fg"><label class="fl">Texto en pantalla</label>
-        <input class="fi" id="fy-ov" placeholder="vacío = usa el del guion" value="${esc(f.overlay)}" oninput="F.form.overlay=this.value"></div>
-      <div class="fg" style="max-width:220px"><label class="fl">Video(s)</label>
-        <input class="fi" type="file" id="fy-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv" multiple></div>
-      <button class="gbtn" style="width:auto;margin:0;padding:9px 18px" id="fy-up" onclick="fyUpload()">Subir</button>
+    <div class="dropzone" id="fy-dz" onclick="$('fy-file').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="fyDrop(event)">
+      <input type="file" id="fy-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv" multiple style="display:none" onchange="fyStageAdd(event)">
+      <div style="font-size:24px;margin-bottom:4px">📥</div>
+      <div><b>Arrastra aquí todos tus clips</b> (o haz clic para elegirlos)</div>
+      <div style="font-size:11px;color:var(--t4);margin-top:3px">Súbelos todos juntos y clasifica cada uno abajo — ya no es uno por uno.</div>
     </div>
-    <div class="fy-hint">Grabas para la <b>persona activa</b> de la barra de arriba. Elige el guion que grabaste y el módulo hereda persona, ángulo y texto en pantalla; la IA le quita silencios, tomas repetidas y errores (sube material crudo). Subtítulos: actívalos en la app de TikTok al publicar.</div>
+    <div id="fy-stage"></div>
+    <div class="fy-hint">Grabas para la <b>persona activa</b> de la barra de arriba. Para cada clip elige el <b>tipo</b> (hook/cuerpo/CTA) y, si quieres, el <b>guion</b> que grabaste (hereda persona, ángulo y texto en pantalla). La IA le quita silencios, tomas repetidas y errores (sube material crudo). Subtítulos: actívalos en la app de TikTok al publicar.</div>
     <div id="fy-mods-box" style="margin-top:12px"></div>`;
 
   const paso3=`
@@ -947,7 +951,7 @@ function renderFyForm(){
   ${fyStepShell(3,'⚡ Generar videos',paso3)}
   ${fyStepShell(4,'📤 Publicar la cola de hoy',paso4)}
   ${fyStepShell(5,'📊 Métricas — qué gana',paso5)}`;
-  const sel=$('fy-type');if(sel)sel.value=f.type;
+  renderStage();
   fyApplyOpen();
 }
 
@@ -1081,25 +1085,72 @@ async function fyScriptSt(id,st){
   catch(e){alert(e.message);}
 }
 
-async function fyUpload(){
+// ── Subida masiva: suelta todos los clips y clasifica cada uno antes de subir ──
+const VID_EXTS=['mp4','mov','m4v','webm','mkv'];
+function fyGuessType(n){const s=(n||'').toLowerCase();
+  if(/(^|[_\-\s])(cta|cierre|llamad)/.test(s))return 'cta';
+  if(/(^|[_\-\s])(cuerpo|body|b\d)/.test(s))return 'body';
+  if(/(^|[_\-\s])(cta|c\d)/.test(s))return 'cta';
+  return 'hook';}
+function fyTypeOpts(sel){return ['hook','body','cta'].map(t=>`<option value="${t}"${t===sel?' selected':''}>${TYPE_ES[t]}</option>`).join('');}
+function fyStageAdd(e){
+  const files=[...((e.target&&e.target.files)||(e.dataTransfer&&e.dataTransfer.files)||[])];
+  let added=0;
+  for(const f of files){
+    const ext=(f.name.split('.').pop()||'').toLowerCase();
+    if(!VID_EXTS.includes(ext))continue;
+    F.stage.push({file:f,name:f.name,type:fyGuessType(f.name),script:'',overlay:'',status:''});added++;
+  }
+  if(e.target&&e.target.value!==undefined)e.target.value='';
+  if(!added&&files.length)alert('Formato no soportado (usa mp4, mov, m4v, webm o mkv).');
+  renderStage();
+}
+function fyDrop(e){e.preventDefault();const dz=$('fy-dz');if(dz)dz.classList.remove('drag');fyStageAdd({dataTransfer:e.dataTransfer});}
+function renderStage(){
+  const el=$('fy-stage');if(!el)return;
+  if(!F.stage.length){el.innerHTML='';return;}
+  const pend=sList(F.scripts).filter(s=>s.status==='pending');
+  const rows=F.stage.map((it,i)=>{
+    const opts=pend.filter(s=>s.type===it.type).map(s=>`<option value="${s.id}"${String(s.id)===String(it.script)?' selected':''}>${esc((s.angle||'guion')+': '+s.text.slice(0,30))}…</option>`).join('');
+    const st=it.status==='uploading'?'<span style="font-size:11px;color:var(--p);display:flex;align-items:center;gap:5px"><span class="spin" style="width:11px;height:11px;border-width:2px"></span>subiendo</span>'
+      :it.status==='done'?'<span style="font-size:11px;color:var(--g)">✓</span>'
+      :it.status==='error'?`<span style="font-size:11px;color:var(--r)" title="${esc(it.error||'')}">error</span>`:'';
+    const busy=it.status==='uploading'||it.status==='done';
+    return`<div class="stg-row">
+      <span class="stg-name" title="${esc(it.name)}">🎬 ${esc(it.name)}</span>
+      <select ${busy?'disabled':''} onchange="F.stage[${i}].type=this.value;F.stage[${i}].script='';renderStage()">${fyTypeOpts(it.type)}</select>
+      <select ${busy?'disabled':''} onchange="F.stage[${i}].script=this.value"><option value="">— sin guion —</option>${opts}</select>
+      <input ${busy?'disabled':''} placeholder="texto en pantalla (opcional)" value="${esc(it.overlay||'')}" oninput="F.stage[${i}].overlay=this.value">
+      <span class="stg-st">${st}</span>
+      <span class="lnk" style="color:var(--r)" onclick="if(!(${busy})){F.stage.splice(${i},1);renderStage();}">✕</span>
+    </div>`;}).join('');
+  el.innerHTML=`<div class="stg-hd">📥 <b>${F.stage.length}</b> clip(s) en cola para <b>${esc(fyPersonaLabel())}</b> · clasifica cada uno y sube todos juntos</div>
+    ${rows}
+    <button class="gbtn" id="fy-stage-btn" style="width:auto;margin-top:10px;padding:9px 22px"${F.upBusy?' disabled':''} onclick="fyStageUpload()">⬆ Subir ${F.stage.filter(x=>x.status!=='done').length} módulo(s)</button>`;
+}
+async function fyStageUpload(){
   if(!F.camp){alert('Crea o selecciona una campaña primero');return;}
-  const inp=$('fy-file');const files=[...(inp?.files||[])];
-  if(!files.length){alert('Elige al menos un video');return;}
-  if(F.upBusy)return;F.upBusy=true;
-  const btn=$('fy-up');btn.disabled=true;btn.textContent='Subiendo...';
-  try{
-    for(const file of files){
+  const todo=F.stage.filter(x=>x.status!=='done');
+  if(!todo.length){alert('Arrastra o elige tus clips primero');return;}
+  if(F.upBusy)return;F.upBusy=true;renderStage();
+  for(const it of F.stage){
+    if(it.status==='done')continue;
+    it.status='uploading';it.error='';renderStage();
+    try{
       const fd=new FormData();
-      fd.append('file',file);fd.append('type',F.form.type);fd.append('campaign_id',F.camp);
-      fd.append('persona',fyEffPersona());fd.append('overlay_text',F.form.overlay);
-      fd.append('script_id',F.form.script||'');
+      fd.append('file',it.file);fd.append('type',it.type);fd.append('campaign_id',F.camp);
+      fd.append('persona',fyEffPersona());fd.append('overlay_text',it.overlay||'');
+      fd.append('script_id',it.script||'');
       const r=await fetch('/api/factory/modules',{method:'POST',body:fd});
       if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail);}
-    }
-    inp.value='';F.form.overlay='';$('fy-ov').value='';F.form.script='';
-    await loadFactory();
-  }catch(e){alert('Error: '+e.message);}
-  F.upBusy=false;btn.disabled=false;btn.textContent='Subir';
+      it.status='done';
+    }catch(e){it.status='error';it.error=e.message;}
+    renderStage();
+  }
+  F.upBusy=false;
+  F.stage=F.stage.filter(x=>x.status!=='done');   // deja solo los que fallaron
+  renderStage();
+  await loadFactory();
 }
 
 function fyStats(){
