@@ -321,10 +321,56 @@ body{background:var(--mesh);background-attachment:fixed}
 .risk.alta{background:var(--rl);color:var(--r)}
 .risk.media{background:var(--al);color:var(--a)}
 .risk-note{font-size:11px;color:var(--r);background:var(--rl);border-radius:7px;padding:6px 9px;margin-top:7px;line-height:1.45}
+/* ── Móvil (responsive) ── */
+#mtop,#sb-backdrop{display:none}
+@media (max-width:760px){
+  body{flex-direction:column;height:auto;min-height:100vh;overflow-x:hidden;overflow-y:auto}
+  /* Barra superior con menú hamburguesa */
+  #mtop{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:120;padding:9px 12px;background:var(--sbg);border-bottom:1px solid var(--bd);backdrop-filter:var(--blur)}
+  #mtop .burger{width:42px;height:42px;border-radius:12px;border:1px solid var(--bd);background:var(--card);color:var(--t2);font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}
+  #mtop .mtitle{flex:1;font-weight:800;font-size:15px;letter-spacing:-.01em}
+  /* Menú lateral = cajón deslizante */
+  #sidebar{position:fixed;left:0;top:0;bottom:0;height:100vh;width:82vw;max-width:310px;min-width:0;z-index:200;transform:translateX(-105%);transition:transform .25s ease;box-shadow:0 0 50px rgba(0,0,0,.35)}
+  body.sb-open #sidebar{transform:translateX(0)}
+  #sb-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;opacity:0;pointer-events:none;transition:opacity .25s}
+  body.sb-open #sb-backdrop{opacity:1;pointer-events:auto}
+  #main{flex:1;height:auto;overflow:visible}
+  .fy-cnt{padding:12px 12px 80px;overflow:visible}
+  /* 3 columnas -> 1 (tarjetas de guion, módulos, etc.) */
+  .modgrid,.sl,.dna-grid{grid-template-columns:1fr;gap:14px}
+  .mg{grid-template-columns:1fr 1fr;gap:10px}
+  /* Filas de formulario apiladas, controles al 100% */
+  .fy-row{flex-direction:column;align-items:stretch;gap:10px}
+  .fy-row .fg{min-width:0;width:100%;max-width:none!important}
+  .fy-row>button,.fy-row .gbtn,.fy-row .abtn{width:100%!important}
+  /* Bandeja de subida: cada clip en bloque legible */
+  .stg-row{grid-template-columns:1fr 1fr;gap:8px}
+  .stg-row .stg-name,.stg-row input{grid-column:1 / -1}
+  /* Tablas con scroll horizontal en vez de romper el layout */
+  .tc table,#fy-combos-box table,#fy-attr-box table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+  /* Inputs táctiles (16px evita el zoom automático de iOS) */
+  .fi{font-size:16px;padding:11px 12px}
+  .gbtn{padding:13px}
+  .abtn{padding:10px 14px;font-size:13px}
+  .ptab{padding:9px 14px;font-size:13px}
+  .sc-act button{padding:7px 12px;font-size:12px}
+  .fy-step-h,.fy-sec,.fy-step-b{padding:14px}
+  .fy-sum{font-size:11px;max-width:42%}
+  .dropzone{padding:26px 14px}
+  .qcard{max-width:none;min-width:0}
+  .psel{padding:12px}
+  .mc2{width:92vw}
+}
 </style>
 </head>
 <body>
-<aside id="sidebar">
+<div id="mtop">
+  <button class="burger" onclick="toggleSidebar()" aria-label="Menú">☰</button>
+  <span class="mtitle">🎬 Fábrica de creativos</span>
+  <button class="theme-btn" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
+</div>
+<div id="sb-backdrop" onclick="toggleSidebar()"></div>
+<aside id="sidebar" onclick="if(event.target.closest('button'))document.body.classList.remove('sb-open')">
   <div class="sb-hdr"><div style="flex:1;min-width:0"><div class="sb-title">Creator Intelligence</div><div class="sb-sub">TikTok Shop · Fábrica de creativos</div></div><button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="Cambiar tema">🌙</button></div>
   <button class="sb-ig" style="background:var(--o);margin-top:0;margin-bottom:14px" onclick="showFactory()">🎬 Fábrica de creativos</button>
   <div class="sb-sec"><span class="sb-lbl">CREADORES</span><div id="cl"></div></div>
@@ -1466,8 +1512,9 @@ async function fyMetrics(){
 }
 
 /* ── Tema claro/oscuro ── */
-function setTheme(t){document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('ci_theme',t);}catch(e){}const b=$('theme-btn');if(b){b.textContent=t==='dark'?'☀️':'🌙';b.title=t==='dark'?'Cambiar a claro':'Cambiar a oscuro';}}
+function setTheme(t){document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('ci_theme',t);}catch(e){}document.querySelectorAll('.theme-btn').forEach(b=>{b.textContent=t==='dark'?'☀️':'🌙';b.title=t==='dark'?'Cambiar a claro':'Cambiar a oscuro';});}
 function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';setTheme(cur==='dark'?'light':'dark');}
+function toggleSidebar(){document.body.classList.toggle('sb-open');}
 
 /* ── Start ── */
 setTheme(document.documentElement.getAttribute('data-theme')||'light');
