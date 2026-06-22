@@ -1,6 +1,8 @@
 import asyncio
+import base64
 import json
 import os
+import secrets
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -8,7 +10,7 @@ from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -40,6 +42,34 @@ app = FastAPI(title="Creator Intelligence", version="1.0.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/factory", StaticFiles(directory="factory"), name="factory")
+
+
+# ─── Acceso (contraseña para publicar la app a internet de forma segura) ──────
+# Si NO defines APP_PASSWORD en el .env → app abierta (uso local cómodo).
+# Si la defines, se exige usuario+contraseña en TODA la app — imprescindible al
+# exponerla por un túnel (Cloudflare) para que nadie más gaste tus créditos.
+_APP_USER = os.getenv("APP_USER", "admin")
+_APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+
+
+@app.middleware("http")
+async def _password_gate(request: Request, call_next):
+    if _APP_PASSWORD:
+        hdr = request.headers.get("authorization", "")
+        ok = False
+        if hdr.startswith("Basic "):
+            try:
+                user, _, pwd = base64.b64decode(hdr[6:]).decode("utf-8").partition(":")
+                ok = (secrets.compare_digest(user, _APP_USER)
+                      and secrets.compare_digest(pwd, _APP_PASSWORD))
+            except Exception:
+                ok = False
+        if not ok:
+            return Response(
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="Fabrica de creativos"'},
+            )
+    return await call_next(request)
 
 
 @app.get("/")
