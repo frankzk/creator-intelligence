@@ -1105,8 +1105,11 @@ function renderFyPersonaBar(){
     return`<div class="ptab${t.key===F.activePersona?' active':''}" title="${esc(t.orphan?'Material sin persona asignada':t.label)}" onclick='fyTab(${JSON.stringify(t.key)})'>${t.orphan?'📦':'👤'} ${esc(t.orphan?'Sin persona':fyShort(t.label))}${badge?` <span class="b">${badge}</span>`:''}</div>`;
   }).join('');
   const act=tabs.find(t=>t.key===F.activePersona);
-  const rm=act&&!act.orphan?`<span class="lnk" style="color:var(--r);font-size:11px;margin-left:auto" onclick='fyRemovePersona(${JSON.stringify(act.label)})'>✕ quitar persona</span>`:'';
-  pb.innerHTML=`<div class="psel"><div class="psel-l" style="display:flex;align-items:center;gap:8px">Buyer persona — filtra todo el embudo (guiones · módulos · videos · cola · métricas). Trabajas una a la vez.${rm}</div><div class="ptabs">${chips}<div class="ptab" style="border-style:dashed;color:var(--t3)" title="Empieza una persona nueva" onclick="fyNewPersona()">＋ nueva</div></div></div>`;
+  const acts=act&&!act.orphan?`<span style="margin-left:auto;display:flex;gap:12px;flex-wrap:wrap">
+    <span class="lnk" style="font-size:11px" onclick='fyRenamePersona(${JSON.stringify(act.label)})'>✏️ renombrar</span>
+    <span class="lnk" style="font-size:11px" onclick='fyMovePersona(${JSON.stringify(act.label)})'>↪ mover</span>
+    <span class="lnk" style="font-size:11px;color:var(--r)" onclick='fyRemovePersona(${JSON.stringify(act.label)})'>✕ quitar</span></span>`:'';
+  pb.innerHTML=`<div class="psel"><div class="psel-l" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Buyer persona — filtra todo el embudo (guiones · módulos · videos · cola · métricas). Trabajas una a la vez.${acts}</div><div class="ptabs">${chips}<div class="ptab" style="border-style:dashed;color:var(--t3)" title="Empieza una persona nueva" onclick="fyNewPersona()">＋ nueva</div></div></div>`;
 }
 function fyNewPersona(){F.manual=1;fyApplyOpen();const bi=$('fy-brief');if(bi){bi.value='';bi.focus();}}
 async function fyResearchPersonas(){
@@ -1124,11 +1127,38 @@ async function fyRemovePersona(name){
   try{fySetPersona('');await api('POST','/api/factory/personas/remove',{campaign_id:F.camp,persona:name});await loadFactory();}
   catch(e){alert(e.message);}
 }
+async function fyRenamePersona(name){
+  const nn=prompt('Nuevo nombre para esta persona:',name);
+  if(nn===null)return;const v=nn.trim();
+  if(!v){alert('El nombre no puede quedar vacío');return;}
+  if(v===name)return;
+  try{await api('POST','/api/factory/personas/rename',{campaign_id:F.camp,old_name:name,new_name:v});fySetPersona(v);await loadFactory();}
+  catch(e){alert(e.message);}
+}
+async function fyMovePersona(name){
+  const others=F.camps.filter(c=>c.id!==F.camp);
+  if(!others.length){alert('No tienes otra campaña a dónde mover. Crea una primero (＋ Nueva campaña).');return;}
+  const list=others.map((c,i)=>`${i+1}) ${c.name}`).join('\n');
+  const pick=prompt(`Mover «${name}» y TODO lo suyo (guiones, módulos y videos) a otra campaña.\n\nEscribe el número de destino:\n\n${list}`);
+  if(pick===null)return;
+  const idx=parseInt(pick,10)-1;
+  if(isNaN(idx)||idx<0||idx>=others.length){alert('Número inválido');return;}
+  const target=others[idx];
+  if(!confirm(`¿Mover «${name}» a «${target.name}»? Se lleva sus guiones, módulos y videos.`))return;
+  try{fySetPersona('');await api('POST','/api/factory/personas/move',{campaign_id:F.camp,persona:name,to_campaign_id:target.id});await loadFactory();}
+  catch(e){alert(e.message);}
+}
 async function fyGenScripts(){
   if(!F.camp)return;
   const hasVids=F.research.filter(r=>r.status==='done').length;
   if(!F.prodImg&&!hasVids){alert('Sube la foto del producto para generar guiones');return;}
   const brief=($('fy-brief')?.value||'').trim();
+  // Confirmación de campaña (evita generar en el producto equivocado al tener varias)
+  if(F.camps.length>1){
+    const c=F.camps.find(x=>x.id===F.camp);
+    const who=brief?`la persona «${brief}»`:'una persona nueva (la IA la elige)';
+    if(!confirm(`Vas a generar guiones para el producto:\n\n   «${c?c.name:''}»  →  ${who}\n\n¿Es la campaña correcta?`))return;
+  }
   try{
     await api('POST','/api/factory/scripts/generate',{campaign_id:F.camp,product_name:F.prod,brief,image_filename:F.prodImg||''});
     await loadFactory();

@@ -596,6 +596,95 @@ async def factory_remove_persona(req: PersonaRemoveRequest):
     return {"status": "ok"}
 
 
+class PersonaRenameRequest(BaseModel):
+    campaign_id: int
+    old_name: str
+    new_name: str
+
+
+@app.post("/api/factory/personas/rename")
+async def factory_rename_persona(req: PersonaRenameRequest):
+    """Renombra una persona en toda la campaña (guiones, módulos, videos y la ficha)."""
+    old = (req.old_name or "").strip()
+    new = (req.new_name or "").strip()
+    if not new:
+        raise HTTPException(400, "El nombre no puede quedar vacío")
+    if old == new:
+        return {"status": "ok", "new": new}
+    conn = get_conn()
+    for tbl in ("factory_scripts", "factory_modules", "factory_combos"):
+        conn.execute(f"UPDATE {tbl} SET persona=? WHERE campaign_id=? AND COALESCE(persona,'')=?",
+                     (new, req.campaign_id, old))
+    row = conn.execute("SELECT personas FROM factory_campaigns WHERE id=?",
+                       (req.campaign_id,)).fetchone()
+    try:
+        personas = json.loads((row["personas"] if row else "") or "[]")
+    except Exception:
+        personas = []
+    out, seen = [], set()
+    for p in personas:
+        if isinstance(p, dict):
+            nm = (p.get("name") or "")
+            if nm == old:
+                p = {**p, "name": new}
+                nm = new
+            if nm in seen:
+                continue          # ya existía una con el nombre nuevo → se fusiona
+            seen.add(nm)
+        out.append(p)
+    conn.execute("UPDATE factory_campaigns SET personas=? WHERE id=?",
+                 (json.dumps(out, ensure_ascii=False), req.campaign_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "new": new}
+
+
+class PersonaMoveRequest(BaseModel):
+    campaign_id: int            # origen
+    persona: str
+    to_campaign_id: int         # destino
+
+
+@app.post("/api/factory/personas/move")
+async def factory_move_persona(req: PersonaMoveRequest):
+    """Mueve una persona y TODO lo suyo (guiones, módulos, videos) a otra campaña.
+    Útil si una persona se generó en el producto equivocado."""
+    persona = (req.persona or "").strip()
+    if req.campaign_id == req.to_campaign_id:
+        return {"status": "ok"}
+    conn = get_conn()
+    if not conn.execute("SELECT id FROM factory_campaigns WHERE id=?",
+                        (req.to_campaign_id,)).fetchone():
+        conn.close()
+        raise HTTPException(400, "La campaña destino no existe")
+    for tbl in ("factory_scripts", "factory_modules", "factory_combos"):
+        conn.execute(f"UPDATE {tbl} SET campaign_id=? WHERE campaign_id=? AND COALESCE(persona,'')=?",
+                     (req.to_campaign_id, req.campaign_id, persona))
+
+    def _load(cid):
+        r = conn.execute("SELECT personas FROM factory_campaigns WHERE id=?", (cid,)).fetchone()
+        try:
+            return json.loads((r["personas"] if r else "") or "[]")
+        except Exception:
+            return []
+
+    src = _load(req.campaign_id)
+    tgt = _load(req.to_campaign_id)
+    moved = [p for p in src if isinstance(p, dict) and (p.get("name") or "") == persona]
+    src = [p for p in src if not (isinstance(p, dict) and (p.get("name") or "") == persona)]
+    tgt_names = {p.get("name") for p in tgt if isinstance(p, dict)}
+    for p in moved:
+        if p.get("name") not in tgt_names:
+            tgt.append(p)
+    conn.execute("UPDATE factory_campaigns SET personas=? WHERE id=?",
+                 (json.dumps(src, ensure_ascii=False), req.campaign_id))
+    conn.execute("UPDATE factory_campaigns SET personas=? WHERE id=?",
+                 (json.dumps(tgt, ensure_ascii=False), req.to_campaign_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
 class ScriptsGenRequest(BaseModel):
     campaign_id: int
     product_name: str = ""
