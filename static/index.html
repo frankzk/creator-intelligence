@@ -311,11 +311,29 @@ body{background:var(--mesh);background-attachment:fixed}
 .dropzone{border:2px dashed var(--bd);border-radius:var(--rad);padding:22px;text-align:center;cursor:pointer;color:var(--t3);transition:all .15s;background:var(--card);backdrop-filter:var(--blur)}
 .dropzone:hover,.dropzone.drag{border-color:var(--p);background:var(--pl);color:var(--p)}
 .stg-hd{font-size:12px;color:var(--t3);margin:14px 0 9px}
-.stg-row{display:grid;grid-template-columns:1.5fr 95px 1.5fr 1.4fr 70px 22px;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--bdl);border-radius:9px;margin-bottom:7px;background:var(--card)}
-.stg-row select,.stg-row input{padding:6px 8px;border:1px solid var(--bd);border-radius:7px;font-size:12px;background:var(--field);color:var(--t);min-width:0;width:100%;outline:none}
+.stg-row{display:flex;flex-direction:column;gap:9px;padding:10px;border:1px solid var(--bdl);border-radius:10px;margin-bottom:8px;background:var(--card)}
+.stg-top{display:flex;align-items:center;gap:10px}
+.stg-prev{width:46px;height:62px;border-radius:7px;object-fit:cover;background:#000;flex:none;cursor:pointer}
+.stg-prev-x{display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--t4)}
+.stg-name{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.stg-del{color:var(--r);cursor:pointer;font-size:13px;flex:none;padding:2px 6px}
+.stg-fields{display:grid;grid-template-columns:96px 1.6fr 1.4fr;gap:8px}
+.stg-row select,.stg-row input{padding:7px 9px;border:1px solid var(--bd);border-radius:7px;font-size:12.5px;background:var(--field);color:var(--t);min-width:0;width:100%;outline:none}
 .stg-row select:disabled,.stg-row input:disabled{opacity:.55}
-.stg-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.stg-st{font-size:11px;text-align:center}
+.stg-status{display:flex;align-items:center;gap:8px;min-height:18px}
+.stg-prog{flex:1;height:7px;border-radius:5px;background:var(--bdl);overflow:hidden;max-width:280px}
+.stg-prog-bar{height:100%;width:0;background:var(--p);transition:width .15s ease}
+.stg-pct{font-size:11px;color:var(--p);font-weight:700;min-width:32px}
+.stg-retry{font-size:11px;border:1px solid var(--bd);background:var(--card);color:var(--t2);border-radius:6px;padding:3px 9px;cursor:pointer}
+.stg-retry:hover{border-color:var(--p);color:var(--p)}
+.fy-faltan{border-radius:10px;padding:12px 14px;margin:0 0 12px;font-size:13px;border:1px solid var(--bdl);background:var(--card)}
+.fy-faltan.warn{color:#B45309;border-color:#FCD34D;background:#FFFBEB}
+.fy-faltan.ok{color:#047857;border-color:#6EE7B7;background:#ECFDF5}
+.ff-hd{font-weight:600;margin-bottom:7px}
+.ff-row{font-size:12.5px;margin:5px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ff-row.done{opacity:.7}
+.ff-pill{display:inline-block;background:#fff;border:1px solid #FCD34D;border-radius:20px;padding:2px 10px;font-size:11.5px;font-weight:600;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ff-note{font-size:11.5px;margin-top:8px;opacity:.85}
 .dur-auto{font-size:12px;color:var(--t2);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;line-height:1.5}
 .risk{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
 .risk.alta{background:var(--rl);color:var(--r)}
@@ -344,8 +362,9 @@ body{background:var(--mesh);background-attachment:fixed}
   .fy-row .fg{min-width:0;width:100%;max-width:none!important}
   .fy-row>button,.fy-row .gbtn,.fy-row .abtn{width:100%!important}
   /* Bandeja de subida: cada clip en bloque legible */
-  .stg-row{grid-template-columns:1fr 1fr;gap:8px}
-  .stg-row .stg-name,.stg-row input{grid-column:1 / -1}
+  .stg-fields{grid-template-columns:1fr}
+  .stg-prev{width:54px;height:72px}
+  .ff-pill{max-width:100%}
   /* Tablas con scroll horizontal en vez de romper el layout */
   .tc table,#fy-combos-box table,#fy-attr-box table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
   /* Inputs táctiles (16px evita el zoom automático de iOS) */
@@ -955,11 +974,12 @@ function renderFyForm(){
     </div>`;
 
   const paso2=`
+    <div id="fy-faltan"></div>
     <div class="dropzone" id="fy-dz" onclick="$('fy-file').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="fyDrop(event)">
       <input type="file" id="fy-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv" multiple style="display:none" onchange="fyStageAdd(event)">
       <div style="font-size:24px;margin-bottom:4px">📥</div>
       <div><b>Arrastra aquí todos tus clips</b> (o haz clic para elegirlos)</div>
-      <div style="font-size:11px;color:var(--t4);margin-top:3px">Súbelos todos juntos y clasifica cada uno abajo — ya no es uno por uno.</div>
+      <div style="font-size:11px;color:var(--t4);margin-top:3px">Súbelos todos juntos · toca el preview de cada clip para reconocerlo y elegir su guion.</div>
     </div>
     <div id="fy-stage"></div>
     <div class="fy-hint">Grabas para la <b>persona activa</b> de la barra de arriba. Para cada clip elige el <b>tipo</b> (hook/cuerpo/CTA) y, si quieres, el <b>guion</b> que grabaste (hereda persona, ángulo y texto en pantalla). La IA le quita silencios, tomas repetidas y errores (sube material crudo). Subtítulos: actívalos en la app de TikTok al publicar.</div>
@@ -1194,56 +1214,126 @@ function fyStageAdd(e){
   for(const f of files){
     const ext=(f.name.split('.').pop()||'').toLowerCase();
     if(!VID_EXTS.includes(ext))continue;
-    F.stage.push({file:f,name:f.name,type:fyGuessType(f.name),script:'',overlay:'',status:''});added++;
+    F.stage.push({uid:(F._uid=(F._uid||0)+1),file:f,name:f.name,type:fyGuessType(f.name),script:'',overlay:'',status:'',progress:0,url:''});added++;
   }
   if(e.target&&e.target.value!==undefined)e.target.value='';
   if(!added&&files.length)alert('Formato no soportado (usa mp4, mov, m4v, webm o mkv).');
   renderStage();
 }
 function fyDrop(e){e.preventDefault();const dz=$('fy-dz');if(dz)dz.classList.remove('drag');fyStageAdd({dataTransfer:e.dataTransfer});}
+// ── Robustez de subida: preview por clip, progreso real (XHR), reintento por archivo ──
+function fyStageObjURL(it){ if(!it.url){ try{it.url=URL.createObjectURL(it.file);}catch(_){it.url='';} } return it.url; }
+function fyStageRemove(i){ const it=F.stage[i]; if(it&&it.url){try{URL.revokeObjectURL(it.url);}catch(_){}} F.stage.splice(i,1); renderStage(); }
+function setStageProgress(it){
+  const bar=$('stg-pg-'+it.uid); if(bar)bar.style.width=(it.progress||0)+'%';
+  const pct=$('stg-pct-'+it.uid); if(pct)pct.textContent=(it.progress||0)+'%';
+}
+function uploadModuleXHR(fd,onProgress){
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/factory/modules');
+    xhr.timeout=600000;   // 10 min: videos grandes por celular
+    xhr.upload.onprogress=e=>{ if(e.lengthComputable&&onProgress)onProgress(Math.round(e.loaded/e.total*100)); };
+    xhr.onload=()=>{ if(xhr.status>=200&&xhr.status<300){let d={};try{d=JSON.parse(xhr.responseText);}catch(_){}resolve(d);}
+      else{let m='Error '+xhr.status;try{m=JSON.parse(xhr.responseText).detail||m;}catch(_){}reject(new Error(m));} };
+    xhr.onerror=()=>reject(new Error('Fallo de red — revisa la conexión y reintenta'));
+    xhr.ontimeout=()=>reject(new Error('La subida tardó demasiado — reintenta con mejor señal'));
+    xhr.send(fd);
+  });
+}
+async function fyUploadItem(it){
+  it.status='uploading';it.error='';it.progress=0;renderStage();
+  try{
+    const fd=new FormData();
+    fd.append('file',it.file);fd.append('type',it.type);fd.append('campaign_id',F.camp);
+    fd.append('persona',fyEffPersona());fd.append('overlay_text',it.overlay||'');
+    fd.append('script_id',it.script||'');
+    await uploadModuleXHR(fd,p=>{it.progress=p;setStageProgress(it);});
+    it.status='done';
+  }catch(e){it.status='error';it.error=e.message||'falló';}
+  renderStage();
+}
+async function fyRetryItem(uid){
+  if(F.upBusy)return;
+  if(!F.camp){alert('Crea o selecciona una campaña primero');return;}
+  const it=F.stage.find(x=>x.uid===uid); if(!it)return;
+  F.upBusy=true;renderStage();
+  await fyUploadItem(it);
+  F.upBusy=false;
+  if(it.status==='done'){ if(it.url){try{URL.revokeObjectURL(it.url);}catch(_){}} F.stage=F.stage.filter(x=>x!==it); }
+  renderStage();
+  await loadFactory();
+}
+// Banner "qué falta": cruza guiones ↔ módulos de la persona activa (vive en el servidor → sobrevive recargas/caídas)
+function fyFaltanBanner(){
+  if(!F.camp)return '';
+  const sc=sList(F.scripts).filter(s=>s.status!=='discarded');
+  if(!sc.length)return '';
+  const mods=sList(F.mods);
+  const linked=new Set(); mods.forEach(m=>{if(m.script_id)linked.add(String(m.script_id));});
+  const pend={hook:[],body:[],cta:[]};
+  sc.forEach(s=>{ const has=s.status==='recorded'||linked.has(String(s.id)); if(!has&&pend[s.type])pend[s.type].push(s); });
+  const nPend=pend.hook.length+pend.body.length+pend.cta.length;
+  const errMods=mods.filter(m=>m.status==='error').length;
+  const staged=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading').length;
+  const who=esc(fyShort(fyPersonaLabel()));
+  const flight=[];
+  if(staged)flight.push(`⏳ ${staged} clip(s) en cola sin subir`);
+  if(errMods)flight.push(`<span style="font-weight:600">✕ ${errMods} módulo(s) con error</span>`);
+  const flightLine=flight.length?`<div style="margin-top:7px;font-size:12px">${flight.join(' · ')}</div>`:'';
+  if(nPend===0)return `<div class="fy-faltan ok">✅ <b>${who}</b>: los ${sc.length} guiones ya tienen su toma.${flightLine}</div>`;
+  const line=t=>{ const arr=pend[t];
+    if(!arr.length)return `<div class="ff-row done">✅ ${TYPE_ES[t]}s — completos</div>`;
+    const names=arr.map(s=>`<span class="ff-pill" title="${esc(s.text||'')}">${esc(s.angle||('guion '+s.id))}</span>`).join('');
+    return `<div class="ff-row"><b>${TYPE_ES[t]}s faltan (${arr.length}):</b> ${names}</div>`; };
+  return `<div class="fy-faltan warn">
+    <div class="ff-hd">📋 Te falta grabar/enlazar — persona <b>${who}</b> · ${nPend} guion${nPend>1?'es':''}</div>
+    ${['hook','body','cta'].map(line).join('')}
+    <div class="ff-note">¿Ya lo grabaste y no aparece aquí? Súbelo abajo eligiendo su guion en el menú, o márcalo ✓ grabado en el Paso 1.</div>
+    ${flightLine}
+  </div>`;
+}
 function renderStage(){
   const el=$('fy-stage');if(!el)return;
-  if(!F.stage.length){el.innerHTML='';return;}
+  if(!F.stage.length){el.innerHTML='';const _fb0=$('fy-faltan');if(_fb0)_fb0.innerHTML=fyFaltanBanner();return;}
   const pend=sList(F.scripts).filter(s=>s.status==='pending');
   const rows=F.stage.map((it,i)=>{
     const opts=pend.filter(s=>s.type===it.type).map(s=>`<option value="${s.id}"${String(s.id)===String(it.script)?' selected':''}>${esc((s.angle||'guion')+': '+s.text.slice(0,30))}…</option>`).join('');
-    const st=it.status==='uploading'?'<span style="font-size:11px;color:var(--p);display:flex;align-items:center;gap:5px"><span class="spin" style="width:11px;height:11px;border-width:2px"></span>subiendo</span>'
-      :it.status==='done'?'<span style="font-size:11px;color:var(--g)">✓</span>'
-      :it.status==='error'?`<span style="font-size:11px;color:var(--r)" title="${esc(it.error||'')}">error</span>`:'';
     const busy=it.status==='uploading'||it.status==='done';
+    let st='';
+    if(it.status==='uploading')st=`<div class="stg-prog"><div class="stg-prog-bar" id="stg-pg-${it.uid}" style="width:${it.progress||0}%"></div></div><span class="stg-pct" id="stg-pct-${it.uid}">${it.progress||0}%</span>`;
+    else if(it.status==='done')st=`<span style="color:var(--g);font-size:12px;font-weight:600">✓ subido</span>`;
+    else if(it.status==='error')st=`<span style="color:var(--r);font-size:11.5px" title="${esc(it.error||'')}">✕ ${esc((it.error||'falló').slice(0,46))}</span><button class="stg-retry" onclick="fyRetryItem(${it.uid})">↻ reintentar</button>`;
+    const url=fyStageObjURL(it);
+    const prev=url?`<video class="stg-prev" src="${url}" playsinline preload="metadata" title="toca para ver/oír" onclick="document.querySelectorAll('.stg-prev').forEach(v=>{if(v!==this)v.pause()});this.paused?this.play():this.pause()"></video>`:`<div class="stg-prev stg-prev-x">🎬</div>`;
     return`<div class="stg-row">
-      <span class="stg-name" title="${esc(it.name)}">🎬 ${esc(it.name)}</span>
-      <select ${busy?'disabled':''} onchange="F.stage[${i}].type=this.value;F.stage[${i}].script='';renderStage()">${fyTypeOpts(it.type)}</select>
-      <select ${busy?'disabled':''} onchange="F.stage[${i}].script=this.value"><option value="">— sin guion —</option>${opts}</select>
-      <input ${busy?'disabled':''} placeholder="texto en pantalla (opcional)" value="${esc(it.overlay||'')}" oninput="F.stage[${i}].overlay=this.value">
-      <span class="stg-st">${st}</span>
-      <span class="lnk" style="color:var(--r)" onclick="if(!(${busy})){F.stage.splice(${i},1);renderStage();}">✕</span>
+      <div class="stg-top">${prev}<span class="stg-name" title="${esc(it.name)}">${esc(it.name)}</span>${busy?'':`<span class="stg-del" onclick="fyStageRemove(${i})" title="quitar">✕</span>`}</div>
+      <div class="stg-fields">
+        <select ${busy?'disabled':''} onchange="F.stage[${i}].type=this.value;F.stage[${i}].script='';renderStage()">${fyTypeOpts(it.type)}</select>
+        <select ${busy?'disabled':''} onchange="F.stage[${i}].script=this.value"><option value="">— sin guion —</option>${opts}</select>
+        <input ${busy?'disabled':''} placeholder="texto en pantalla (opcional)" value="${esc(it.overlay||'')}" oninput="F.stage[${i}].overlay=this.value">
+      </div>
+      <div class="stg-status">${st}</div>
     </div>`;}).join('');
-  el.innerHTML=`<div class="stg-hd">📥 <b>${F.stage.length}</b> clip(s) en cola para <b>${esc(fyPersonaLabel())}</b> · clasifica cada uno y sube todos juntos</div>
+  const nPend=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading').length;
+  const nFail=F.stage.filter(x=>x.status==='error').length;
+  el.innerHTML=`<div class="stg-hd">📥 <b>${F.stage.length}</b> clip(s) en cola para <b>${esc(fyPersonaLabel())}</b> · toca cada preview para reconocerlo, elige su guion y sube</div>
     ${rows}
-    <button class="gbtn" id="fy-stage-btn" style="width:auto;margin-top:10px;padding:9px 22px"${F.upBusy?' disabled':''} onclick="fyStageUpload()">⬆ Subir ${F.stage.filter(x=>x.status!=='done').length} módulo(s)</button>`;
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <button class="gbtn" id="fy-stage-btn" style="width:auto;margin:0;padding:9px 22px"${F.upBusy?' disabled':''} onclick="fyStageUpload()">⬆ Subir ${nPend} módulo(s)</button>
+      ${nFail?`<span style="font-size:12px;color:var(--r)">${nFail} con error — usa ↻ en cada fila o vuelve a “Subir”.</span>`:''}
+    </div>`;
+  const _fb=$('fy-faltan');if(_fb)_fb.innerHTML=fyFaltanBanner();
 }
 async function fyStageUpload(){
   if(!F.camp){alert('Crea o selecciona una campaña primero');return;}
-  const todo=F.stage.filter(x=>x.status!=='done');
+  const todo=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading');
   if(!todo.length){alert('Arrastra o elige tus clips primero');return;}
   if(F.upBusy)return;F.upBusy=true;renderStage();
-  for(const it of F.stage){
-    if(it.status==='done')continue;
-    it.status='uploading';it.error='';renderStage();
-    try{
-      const fd=new FormData();
-      fd.append('file',it.file);fd.append('type',it.type);fd.append('campaign_id',F.camp);
-      fd.append('persona',fyEffPersona());fd.append('overlay_text',it.overlay||'');
-      fd.append('script_id',it.script||'');
-      const r=await fetch('/api/factory/modules',{method:'POST',body:fd});
-      if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail);}
-      it.status='done';
-    }catch(e){it.status='error';it.error=e.message;}
-    renderStage();
-  }
+  for(const it of todo){ await fyUploadItem(it); }   // cada uno sube/falla por separado
   F.upBusy=false;
-  F.stage=F.stage.filter(x=>x.status!=='done');   // deja solo los que fallaron
+  F.stage.filter(x=>x.status==='done').forEach(x=>{ if(x.url){try{URL.revokeObjectURL(x.url);}catch(_){}} });
+  F.stage=F.stage.filter(x=>x.status!=='done');   // conserva solo los que fallaron, para reintentar
   renderStage();
   await loadFactory();
 }
@@ -1375,6 +1465,7 @@ function renderFyLists(){
   mods.forEach(m=>{(byType[m.type]||[]).push(m);});
   const cols=['hook','body','cta'].map(t=>`<div class="modcol"><h5>${TYPE_ES[t].toUpperCase()}S (${byType[t].length})</h5>${byType[t].map(fyModItem).join('')||'<div style="color:var(--t4);font-size:12px">Sin módulos</div>'}</div>`).join('');
   $('fy-mods-box').innerHTML=mods.length?`<div class="modgrid">${cols}</div>`:'';
+  const _fb=$('fy-faltan');if(_fb)_fb.innerHTML=fyFaltanBanner();   // banner "qué falta" (sobrevive recargas)
 
   // Paso 3 · videos generados (de la persona activa)
   const rows=combos.map(c=>{
