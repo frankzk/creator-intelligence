@@ -1366,29 +1366,76 @@ function setStageProgress(it){
   const bar=$('stg-pg-'+it.uid); if(bar)bar.style.width=(it.progress||0)+'%';
   const pct=$('stg-pct-'+it.uid); if(pct)pct.textContent=(it.progress||0)+'%';
 }
-function uploadModuleXHR(fd,onProgress){
+// Subida POR TROZOS: cada request ~8 MB queda debajo del límite de Cloudflare (~100 MB),
+// así el tamaño del clip deja de importar. Con watchdog de estancamiento, handlers
+// completos (también xhr.upload.onerror/onabort), reintento por trozo y cancelación real.
+const CHUNK_BYTES=8*1024*1024;     // 8 MB por trozo
+const CHUNK_STALL_MS=25000;        // sin avance 25s → trozo estancado (no 10 min)
+function fyUploadId(){
+  try{ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
+  let s='';for(let i=0;i<32;i++)s+='0123456789abcdef'[(Math.random()*16)|0];
+  return s;
+}
+function sendChunkXHR(it,uploadId,offset,blob,onFrac){
   return new Promise((resolve,reject)=>{
-    const xhr=new XMLHttpRequest();
-    xhr.open('POST','/api/factory/modules');
-    xhr.timeout=600000;   // 10 min: videos grandes por celular
-    xhr.upload.onprogress=e=>{ if(e.lengthComputable&&onProgress)onProgress(Math.round(e.loaded/e.total*100)); };
-    xhr.onload=()=>{ if(xhr.status>=200&&xhr.status<300){let d={};try{d=JSON.parse(xhr.responseText);}catch(_){}resolve(d);}
-      else{let m='Error '+xhr.status;try{m=JSON.parse(xhr.responseText).detail||m;}catch(_){}reject(new Error(m));} };
-    xhr.onerror=()=>reject(new Error('Fallo de red — revisa la conexión y reintenta'));
-    xhr.ontimeout=()=>reject(new Error('La subida tardó demasiado — reintenta con mejor señal'));
+    const xhr=new XMLHttpRequest(); it._xhr=xhr;
+    let wd; const arm=()=>{clearTimeout(wd);wd=setTimeout(()=>{try{xhr.abort();}catch(_){}},CHUNK_STALL_MS);};
+    const fin=()=>{clearTimeout(wd); if(it._xhr===xhr)it._xhr=null;};
+    xhr.open('POST','/api/factory/modules/chunk');
+    xhr.timeout=90000;
+    xhr.upload.onprogress=e=>{arm(); if(e.lengthComputable&&onFrac)onFrac(e.loaded/(e.total||1));};
+    xhr.upload.onerror=()=>{fin();reject(new Error('Fallo de red en un trozo'));};
+    xhr.upload.onabort=()=>{fin();reject(new Error(it._cancelled?'Cancelado':'La subida se quedó sin avanzar — reintenta'));};
+    xhr.onload=()=>{fin(); if(xhr.status>=200&&xhr.status<300)resolve(); else{let m='Error '+xhr.status;try{m=JSON.parse(xhr.responseText).detail||m;}catch(_){}reject(new Error(m));}};
+    xhr.onerror=()=>{fin();reject(new Error('Fallo de red — revisa la conexión'));};
+    xhr.ontimeout=()=>{fin();reject(new Error('Un trozo tardó demasiado'));};
+    const fd=new FormData(); fd.append('upload_id',uploadId); fd.append('offset',offset); fd.append('chunk',blob,'chunk');
+    xhr.send(fd); arm();
+  });
+}
+function finalizeXHR(it,uploadId){
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest(); it._xhr=xhr;
+    const fin=()=>{ if(it._xhr===xhr)it._xhr=null; };
+    xhr.open('POST','/api/factory/modules/finalize'); xhr.timeout=120000;
+    xhr.onload=()=>{fin(); if(xhr.status>=200&&xhr.status<300){let d={};try{d=JSON.parse(xhr.responseText);}catch(_){}resolve(d);} else{let m='Error '+xhr.status;try{m=JSON.parse(xhr.responseText).detail||m;}catch(_){}reject(new Error(m));}};
+    xhr.onerror=()=>{fin();reject(new Error('Fallo de red al finalizar'));};
+    xhr.ontimeout=()=>{fin();reject(new Error('El servidor tardó al finalizar'));};
+    const fd=new FormData();
+    fd.append('upload_id',uploadId);fd.append('filename',it.name);fd.append('type',it.type);
+    fd.append('campaign_id',F.camp);fd.append('size',it.file.size);
+    fd.append('persona',fyEffPersona());fd.append('overlay_text',it.overlay||'');fd.append('script_id',it.script||'');
     xhr.send(fd);
   });
 }
+async function uploadModuleChunked(it,onProgress){
+  const uploadId=fyUploadId(), size=it.file.size, total=Math.max(1,Math.ceil(size/CHUNK_BYTES));
+  for(let index=0;index<total;index++){
+    if(it._cancelled)throw new Error('Cancelado');
+    const start=index*CHUNK_BYTES, blob=it.file.slice(start,Math.min(size,start+CHUNK_BYTES));
+    let attempt=0;
+    for(;;){
+      try{ await sendChunkXHR(it,uploadId,start,blob,frac=>onProgress(Math.round(((index+frac)/total)*100))); onProgress(Math.round(((index+1)/total)*100)); break; }
+      catch(e){ if(it._cancelled||++attempt>2)throw e; }   // 3 intentos por trozo ante cortes
+    }
+  }
+  if(it._cancelled)throw new Error('Cancelado');
+  return await finalizeXHR(it,uploadId);
+}
 async function fyUploadItem(it){
-  it.status='uploading';it.error='';it.progress=0;renderStage();
+  it.status='uploading';it.error='';it.progress=0;it._cancelled=false;renderStage();
   try{
-    const fd=new FormData();
-    fd.append('file',it.file);fd.append('type',it.type);fd.append('campaign_id',F.camp);
-    fd.append('persona',fyEffPersona());fd.append('overlay_text',it.overlay||'');
-    fd.append('script_id',it.script||'');
-    await uploadModuleXHR(fd,p=>{it.progress=p;setStageProgress(it);});
+    await uploadModuleChunked(it,p=>{ it.progress=p; if(p>=100){ if(it.status!=='processing'){it.status='processing';renderStage();} } else setStageProgress(it); });
     it.status='done';
-  }catch(e){it.status='error';it.error=e.message||'falló';}
+  }catch(e){ it.status=it._cancelled?'cancelled':'error'; it.error=e.message||'falló'; }
+  finally{ it._xhr=null; }
+  renderStage();
+}
+function fyCancelItem(uid){
+  const it=F.stage.find(x=>x.uid===uid); if(!it)return;
+  it._cancelled=true; try{ it._xhr&&it._xhr.abort(); }catch(_){}
+  if(it.url){try{URL.revokeObjectURL(it.url);}catch(_){}}
+  F.stage=F.stage.filter(x=>x!==it);
   renderStage();
 }
 async function fyRetryItem(uid){
@@ -1437,15 +1484,16 @@ function renderStage(){
   const pend=sList(F.scripts).filter(s=>s.status==='pending');
   const rows=F.stage.map((it,i)=>{
     const opts=pend.filter(s=>s.type===it.type).map(s=>`<option value="${s.id}"${String(s.id)===String(it.script)?' selected':''}>${esc((s.angle||'guion')+': '+s.text.slice(0,30))}…</option>`).join('');
-    const busy=it.status==='uploading'||it.status==='done';
+    const busy=it.status==='uploading'||it.status==='processing'||it.status==='done';
     let st='';
     if(it.status==='uploading')st=`<div class="stg-prog"><div class="stg-prog-bar" id="stg-pg-${it.uid}" style="width:${it.progress||0}%"></div></div><span class="stg-pct" id="stg-pct-${it.uid}">${it.progress||0}%</span>`;
+    else if(it.status==='processing')st=`<span style="font-size:11.5px;color:var(--p);font-weight:600">⏳ procesando en el servidor…</span>`;
     else if(it.status==='done')st=`<span style="color:var(--g);font-size:12px;font-weight:600">✓ subido</span>`;
     else if(it.status==='error')st=`<span style="color:var(--r);font-size:11.5px" title="${esc(it.error||'')}">✕ ${esc((it.error||'falló').slice(0,46))}</span><button class="stg-retry" onclick="fyRetryItem(${it.uid})">↻ reintentar</button>`;
     const url=fyStageObjURL(it);
     const prev=url?`<video class="stg-prev" src="${url}" playsinline preload="metadata" title="toca para ver/oír" onclick="document.querySelectorAll('.stg-prev').forEach(v=>{if(v!==this)v.pause()});this.paused?this.play():this.pause()"></video>`:`<div class="stg-prev stg-prev-x">🎬</div>`;
     return`<div class="stg-row">
-      <div class="stg-top">${prev}<span class="stg-name" title="${esc(it.name)}">${esc(it.name)}</span>${busy?'':`<span class="stg-del" onclick="fyStageRemove(${i})" title="quitar">✕</span>`}</div>
+      <div class="stg-top">${prev}<span class="stg-name" title="${esc(it.name)}">${esc(it.name)}</span>${(it.status==='uploading'||it.status==='processing')?`<span class="stg-del" onclick="fyCancelItem(${it.uid})" title="cancelar subida">✕</span>`:(it.status==='done'?'':`<span class="stg-del" onclick="fyStageRemove(${i})" title="quitar">✕</span>`)}</div>
       <div class="stg-fields">
         <select ${busy?'disabled':''} onchange="F.stage[${i}].type=this.value;F.stage[${i}].script='';renderStage()">${fyTypeOpts(it.type)}</select>
         <select ${busy?'disabled':''} onchange="F.stage[${i}].script=this.value"><option value="">— sin guion —</option>${opts}</select>
@@ -1453,7 +1501,7 @@ function renderStage(){
       </div>
       <div class="stg-status">${st}</div>
     </div>`;}).join('');
-  const nPend=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading').length;
+  const nPend=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading'&&x.status!=='processing').length;
   const nFail=F.stage.filter(x=>x.status==='error').length;
   el.innerHTML=`<div class="stg-hd">📥 <b>${F.stage.length}</b> clip(s) en cola para <b>${esc(fyPersonaLabel())}</b> · toca cada preview para reconocerlo, elige su guion y sube</div>
     ${rows}
@@ -1465,7 +1513,7 @@ function renderStage(){
 }
 async function fyStageUpload(){
   if(!F.camp){toast('Crea o selecciona una campaña primero','error');return;}
-  const todo=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading');
+  const todo=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading'&&x.status!=='processing');
   if(!todo.length){toast('Arrastra o elige tus clips primero','warn');return;}
   if(F.upBusy)return;F.upBusy=true;renderStage();
   for(const it of todo){ await fyUploadItem(it); }   // cada uno sube/falla por separado

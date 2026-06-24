@@ -38,6 +38,7 @@ Path("temp_audio").mkdir(exist_ok=True)
 init_db()
 vf.ensure_dirs()
 vf.kick_thumb_backfill()   # pósters JPG de módulos ya renderizados (hilo daemon, no bloquea)
+vf.cleanup_tmp()           # borra trozos de subidas abandonadas (>24h)
 
 app = FastAPI(title="Creator Intelligence", version="1.0.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -852,38 +853,85 @@ async def factory_upload_module(
     with open(src_path, "wb") as f:
         f.write(await file.read())
 
-    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-    overlay = overlay_text.strip()
-    persona = (persona or "").strip()   # persona activa (del scope); filtra todo
-    angle = ""
-    sid = None
-    if script_id.strip():
-        srow = conn.execute("SELECT * FROM factory_scripts WHERE id=?",
-                            (int(script_id),)).fetchone()
-        if srow:
-            sid = srow["id"]
-            angle = srow["angle"] or ""
-            if not overlay:
-                overlay = srow["overlay_text"] or ""
-            # El guion manda la persona: cada persona es un mini-proyecto y solo
-            # combina con módulos de su misma persona.
-            if srow["persona"]:
-                persona = (srow["persona"] or "").strip()
-            conn.execute("UPDATE factory_scripts SET status='recorded' WHERE id=?", (sid,))
-    if persona and persona not in tag_list:
-        tag_list.append(persona)   # tag de respaldo para vistas antiguas
-    conn.execute("""
-        INSERT INTO factory_modules
-            (campaign_id, type, label, original_name, src_path, persona, tags, overlay_text, script_id, angle)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
-    """, (campaign_id, type, label, file.filename, str(src_path), persona,
-          json.dumps(tag_list, ensure_ascii=False), overlay, sid, angle))
-    conn.commit()
-    module_id = conn.execute(
-        "SELECT id FROM factory_modules WHERE label=?", (label,)
-    ).fetchone()["id"]
+    module_id = vf.create_module(
+        conn, type=type, campaign_id=campaign_id, label=label,
+        src_path=src_path, original_name=file.filename,
+        persona=persona, overlay_text=overlay_text, script_id=script_id, tags=tags,
+    )
     conn.close()
+    vf.kick_pipeline()
+    return {"id": module_id, "label": label, "status": "uploaded"}
 
+
+# ─── Subida por trozos (esquiva el límite de ~100 MB del túnel) ──────────────
+
+def _safe_upload_id(uid: str) -> str:
+    uid = (uid or "").strip()
+    if not (8 <= len(uid) <= 40) or any(c not in "0123456789abcdefABCDEF-" for c in uid):
+        raise HTTPException(400, "upload_id inválido")
+    return uid
+
+
+@app.post("/api/factory/modules/chunk")
+async def factory_upload_chunk(
+    upload_id: str = Form(...),
+    offset: int = Form(...),
+    chunk: UploadFile = File(...),
+):
+    uid = _safe_upload_id(upload_id)
+    if offset < 0:
+        raise HTTPException(400, "offset inválido")
+    vf.ensure_dirs()
+    part = vf.TMP_DIR / f"{uid}.part"
+    data = await chunk.read()
+    if not part.exists():
+        part.touch()
+    # Escritura por offset → reintentar un trozo es idempotente (sobrescribe).
+    with open(part, "r+b") as f:
+        f.seek(offset)
+        f.write(data)
+    return {"ok": True, "offset": offset, "len": len(data)}
+
+
+@app.post("/api/factory/modules/finalize")
+async def factory_finalize_upload(
+    upload_id: str = Form(...),
+    filename: str = Form(...),
+    type: str = Form(...),
+    campaign_id: int = Form(...),
+    size: int = Form(0),
+    persona: str = Form(""),
+    overlay_text: str = Form(""),
+    script_id: str = Form(""),
+    tags: str = Form(""),
+):
+    uid = _safe_upload_id(upload_id)
+    if type not in vf.TYPE_PREFIX:
+        raise HTTPException(400, "type debe ser hook, body o cta")
+    ext = Path(filename or "").suffix.lower()
+    if ext not in VIDEO_EXTS:
+        raise HTTPException(400, "Formato no soportado (mp4, mov, m4v, webm, mkv).")
+    part = vf.TMP_DIR / f"{uid}.part"
+    if not part.exists():
+        raise HTTPException(400, "No se recibieron los trozos — reintenta la subida")
+    if size and part.stat().st_size != size:
+        part.unlink(missing_ok=True)
+        raise HTTPException(400, "Subida incompleta (faltaron trozos) — reintenta")
+
+    conn = get_conn()
+    if not conn.execute("SELECT id FROM factory_campaigns WHERE id=?", (campaign_id,)).fetchone():
+        conn.close()
+        part.unlink(missing_ok=True)
+        raise HTTPException(400, "Campaña inexistente — crea una primero")
+    label = vf.next_label(conn, type)
+    src_path = vf.SRC_DIR / f"{label}{ext}"
+    os.replace(part, src_path)          # TMP y SRC viven bajo factory/ → mismo FS, atómico
+    module_id = vf.create_module(
+        conn, type=type, campaign_id=campaign_id, label=label,
+        src_path=src_path, original_name=filename,
+        persona=persona, overlay_text=overlay_text, script_id=script_id, tags=tags,
+    )
+    conn.close()
     vf.kick_pipeline()
     return {"id": module_id, "label": label, "status": "uploaded"}
 

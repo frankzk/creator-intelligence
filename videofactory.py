@@ -25,6 +25,7 @@ NORM_DIR = FACTORY_DIR / "normalized"    # 1080x1920@30 normalizados
 SEG_DIR = FACTORY_DIR / "segments"       # renderizados por Remotion
 OUT_DIR = FACTORY_DIR / "output"         # combos finales
 THUMB_DIR = FACTORY_DIR / "thumbs"       # pósters JPG (primer frame de cada módulo)
+TMP_DIR = FACTORY_DIR / "tmp"            # trozos de subida en curso (chunked)
 RENDER_DIR = Path("render")
 RENDER_INPUTS = RENDER_DIR / "public" / "inputs"
 
@@ -33,7 +34,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 
 
 def ensure_dirs():
-    for d in (SRC_DIR, NORM_DIR, SEG_DIR, OUT_DIR, THUMB_DIR, RENDER_INPUTS):
+    for d in (SRC_DIR, NORM_DIR, SEG_DIR, OUT_DIR, THUMB_DIR, TMP_DIR, RENDER_INPUTS):
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -343,6 +344,57 @@ def backfill_thumbs():
 
 def kick_thumb_backfill():
     threading.Thread(target=backfill_thumbs, daemon=True).start()
+
+
+# ─── Alta de módulo (subida directa o por trozos) y limpieza de temporales ───
+
+def create_module(conn, *, type, campaign_id, label, src_path, original_name,
+                  persona="", overlay_text="", script_id="", tags="") -> int:
+    """Inserta la fila del módulo (enlazando el guion si viene) y devuelve su id.
+    Asume que el archivo ya está en src_path y que `label` ya fue reservado con
+    next_label(). Lo usan el endpoint single-shot y el de subida por trozos."""
+    tag_list = [t.strip() for t in (tags or "").split(",") if t.strip()]
+    overlay = (overlay_text or "").strip()
+    persona = (persona or "").strip()              # persona activa (del scope); filtra todo
+    angle = ""
+    sid = None
+    if str(script_id or "").strip():
+        srow = conn.execute("SELECT * FROM factory_scripts WHERE id=?",
+                            (int(script_id),)).fetchone()
+        if srow:
+            sid = srow["id"]
+            angle = srow["angle"] or ""
+            if not overlay:
+                overlay = srow["overlay_text"] or ""
+            # El guion manda la persona: cada persona es un mini-proyecto.
+            if srow["persona"]:
+                persona = (srow["persona"] or "").strip()
+            conn.execute("UPDATE factory_scripts SET status='recorded' WHERE id=?", (sid,))
+    if persona and persona not in tag_list:
+        tag_list.append(persona)                   # tag de respaldo para vistas antiguas
+    cur = conn.execute("""
+        INSERT INTO factory_modules
+            (campaign_id, type, label, original_name, src_path, persona, tags, overlay_text, script_id, angle)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+    """, (campaign_id, type, label, original_name, str(src_path), persona,
+          json.dumps(tag_list, ensure_ascii=False), overlay, sid, angle))
+    conn.commit()
+    return cur.lastrowid
+
+
+def cleanup_tmp(max_age_h: float = 24):
+    """Borra trozos de subidas abandonadas (best-effort, al arrancar)."""
+    try:
+        ensure_dirs()
+        cutoff = time.time() - max_age_h * 3600
+        for p in TMP_DIR.glob("*.part"):
+            try:
+                if p.stat().st_mtime < cutoff:
+                    p.unlink(missing_ok=True)
+            except OSError:
+                pass
+    except Exception:
+        pass
 
 
 # ─── Edición inteligente (silencios, tomas repetidas, duración) ──────────────
