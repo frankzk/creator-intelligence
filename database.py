@@ -172,6 +172,8 @@ def init_db():
         conn.execute("ALTER TABLE factory_modules ADD COLUMN trim_of INTEGER")
     if "persona" not in mod_cols:
         conn.execute("ALTER TABLE factory_modules ADD COLUMN persona TEXT DEFAULT ''")
+    if "thumb_path" not in mod_cols:
+        conn.execute("ALTER TABLE factory_modules ADD COLUMN thumb_path TEXT DEFAULT ''")
     combo_cols = {r["name"] for r in conn.execute("PRAGMA table_info(factory_combos)").fetchall()}
     if "persona" not in combo_cols:
         conn.execute("ALTER TABLE factory_combos ADD COLUMN persona TEXT DEFAULT ''")

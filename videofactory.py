@@ -24,6 +24,7 @@ SRC_DIR = FACTORY_DIR / "src"            # originales subidos
 NORM_DIR = FACTORY_DIR / "normalized"    # 1080x1920@30 normalizados
 SEG_DIR = FACTORY_DIR / "segments"       # renderizados por Remotion
 OUT_DIR = FACTORY_DIR / "output"         # combos finales
+THUMB_DIR = FACTORY_DIR / "thumbs"       # pósters JPG (primer frame de cada módulo)
 RENDER_DIR = Path("render")
 RENDER_INPUTS = RENDER_DIR / "public" / "inputs"
 
@@ -32,7 +33,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 
 
 def ensure_dirs():
-    for d in (SRC_DIR, NORM_DIR, SEG_DIR, OUT_DIR, RENDER_INPUTS):
+    for d in (SRC_DIR, NORM_DIR, SEG_DIR, OUT_DIR, THUMB_DIR, RENDER_INPUTS):
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -114,6 +115,20 @@ def concat(segments: list[str | Path], dst: str | Path):
               "-i", str(list_file), "-c", "copy", "-movflags", "+faststart", str(dst)])
     finally:
         list_file.unlink(missing_ok=True)
+
+
+def make_thumb(seg_path: str | Path, label: str) -> str:
+    """Primer frame del segmento → JPG pequeño para usar como póster en la UI.
+    Best-effort: si ffmpeg falla, devuelve '' y la UI cae al póster por <video>."""
+    try:
+        ensure_dirs()
+        out = THUMB_DIR / f"{label}.jpg"
+        _run([_ffmpeg(), "-y", "-ss", "0.1", "-i", str(seg_path),
+              "-frames:v", "1", "-vf", "scale=216:-2", "-q:v", "3", str(out)])
+        return str(out)
+    except Exception as exc:
+        print(f"[factory/thumb] {label}: {exc}")
+        return ""
 
 
 # ─── Pipeline de módulos (normalizar → transcribir → renderizar) ─────────────
@@ -288,8 +303,9 @@ def _render_transcribed_modules() -> bool:
                 continue
         for m in rows:
             if m["id"] in ok_ids:
-                _set_module(conn, m["id"], status="ready",
-                            seg_path=str(SEG_DIR / f"{m['label']}.mp4"))
+                seg = SEG_DIR / f"{m['label']}.mp4"
+                _set_module(conn, m["id"], status="ready", seg_path=str(seg),
+                            thumb_path=make_thumb(seg, m["label"]))
             else:
                 detail = proc.stderr[-300:] if proc.returncode != 0 else "render incompleto"
                 _set_module(conn, m["id"], status="error", error=detail)
@@ -303,6 +319,30 @@ def _render_transcribed_modules() -> bool:
 
     conn.close()
     return True
+
+
+# ─── Miniaturas (póster JPG por módulo) ──────────────────────────────────────
+
+def backfill_thumbs():
+    """Genera el póster de módulos ya renderizados que aún no lo tienen
+    (para que la librería existente gane miniatura sin re-renderizar)."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id,label,seg_path FROM factory_modules "
+        "WHERE status='ready' AND IFNULL(seg_path,'')<>'' AND IFNULL(thumb_path,'')=''"
+    ).fetchall()
+    conn.close()
+    for r in rows:
+        if Path(r["seg_path"]).exists():
+            t = make_thumb(r["seg_path"], r["label"])
+            if t:
+                c = get_conn()
+                _set_module(c, r["id"], thumb_path=t)
+                c.close()
+
+
+def kick_thumb_backfill():
+    threading.Thread(target=backfill_thumbs, daemon=True).start()
 
 
 # ─── Edición inteligente (silencios, tomas repetidas, duración) ──────────────

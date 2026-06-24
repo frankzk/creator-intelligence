@@ -37,6 +37,7 @@ Path("temp_audio").mkdir(exist_ok=True)
 
 init_db()
 vf.ensure_dirs()
+vf.kick_thumb_backfill()   # pósters JPG de módulos ya renderizados (hilo daemon, no bloquea)
 
 app = FastAPI(title="Creator Intelligence", version="1.0.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")

@@ -1501,8 +1501,10 @@ function fyStats(){
 function fyModItem(m){
   const dc=m.status==='ready'?'dg':m.status==='error'?'dr':'da dp';
   const prev=m.seg_path?` · <a class="lnk" href="${furl(m.seg_path)}" target="_blank">ver</a>`:'';
+  const tsrc=furl(m.seg_path)+(m.thumb_path?'':'#t=0.1');          // con póster JPG no hace falta el frame del video
+  const tload=m.thumb_path?`poster="${furl(m.thumb_path)}" preload="none"`:'preload="metadata"';
   const poster=m.seg_path
-    ?`<video class="mod-prev" src="${furl(m.seg_path)}#t=0.1" preload="metadata" playsinline title="toca para ver/oír" onclick="document.querySelectorAll('.mod-prev,.q-prev,.stg-prev').forEach(v=>{if(v!==this)v.pause()});this.paused?this.play():this.pause()"></video>`
+    ?`<video class="mod-prev" src="${tsrc}" ${tload} playsinline title="toca para ver/oír" onclick="document.querySelectorAll('.mod-prev,.q-prev,.stg-prev').forEach(v=>{if(v!==this)v.pause()});this.paused?this.play():this.pause()"></video>`
     :`<div class="mod-prev mod-prev-x" title="${esc(MOD_ST[m.status]||m.status)}">🎬</div>`;
   return`<div class="modit">
     <div class="modit-top">${poster}<div class="modit-id"><span class="lbl">${esc(m.label)}</span><span class="modit-nm" title="${esc(m.transcript||'')}">${esc((m.original_name||'').slice(0,24))}</span></div></div>
