@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Entrar · Fábrica de creativos</title>
+<script>(function(){try{var t=localStorage.getItem('ci_theme');if(!t)t=(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --mesh:radial-gradient(900px 520px at 88% -6%, #efe7ff 0%, transparent 60%),radial-gradient(820px 480px at -6% 4%, #e3f0ff 0%, transparent 55%),radial-gradient(760px 520px at 62% 118%, #ffe6f2 0%, transparent 55%),#F7F6FC;
+  --card:rgba(255,255,255,.74);--field:#ffffff;--bd:#E7E5F0;
+  --t:#1f2030;--t3:#6c6d82;--p:#7C3AED;
+  --accent-grad:linear-gradient(135deg,#7C3AED,#6366F1);
+  --r:#EF4444;--rl:#FEE2E2;
+  --shadow-lg:0 24px 50px -30px rgba(99,102,241,.45);--blur:blur(14px)
+}
+[data-theme="dark"]{
+  --mesh:radial-gradient(1100px 640px at 82% -10%, #2a1758 0%, transparent 60%),radial-gradient(900px 520px at -6% 8%, #15213a 0%, transparent 55%),#08080d;
+  --card:rgba(255,255,255,.045);--field:rgba(255,255,255,.06);--bd:rgba(255,255,255,.10);
+  --t:#ECECF4;--t3:#9a9ab0;--p:#a78bfa;
+  --accent-grad:linear-gradient(135deg,#7C3AED,#D946EF);
+  --r:#f87171;--rl:rgba(239,68,68,.16);
+  --shadow-lg:0 26px 60px -32px rgba(124,58,237,.5);--blur:blur(16px)
+}
+html,body{height:100%}
+body{display:flex;align-items:center;justify-content:center;padding:24px;
+  background:var(--mesh);background-attachment:fixed;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--t)}
+.card{width:100%;max-width:360px;background:var(--card);border:1px solid var(--bd);
+  border-radius:18px;padding:30px 26px;backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  box-shadow:var(--shadow-lg);text-align:center}
+.logo{width:54px;height:54px;border-radius:15px;background:var(--accent-grad);
+  display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px;
+  box-shadow:0 10px 24px -12px rgba(124,58,237,.6)}
+h1{font-size:18px;font-weight:700;margin-bottom:4px}
+.sub{font-size:13px;color:var(--t3);margin-bottom:22px}
+.err{display:none;background:var(--rl);color:var(--r);font-size:12.5px;font-weight:500;
+  padding:9px 12px;border-radius:10px;margin-bottom:14px}
+.err.show{display:block}
+input{width:100%;padding:12px 14px;border:1px solid var(--bd);border-radius:12px;
+  background:var(--field);color:var(--t);font-size:15px;margin-bottom:12px;transition:border-color .15s}
+input::placeholder{color:var(--t3)}
+input:focus{outline:none;border-color:var(--p)}
+button{width:100%;padding:12px;border:none;border-radius:12px;background:var(--accent-grad);
+  color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:filter .15s}
+button:hover{filter:brightness(1.07)}
+.foot{margin-top:16px;font-size:11px;color:var(--t3)}
+</style>
+</head>
+<body>
+<form class="card" method="post" action="/login" autocomplete="on">
+  <div class="logo">🎬</div>
+  <h1>Fábrica de creativos</h1>
+  <div class="sub">Ingresá la contraseña para entrar</div>
+  <div class="err" id="err">Contraseña incorrecta. Probá de nuevo.</div>
+  <input type="password" name="password" placeholder="Contraseña" autocomplete="current-password" autofocus required>
+  <button type="submit">Entrar</button>
+  <div class="foot">Acceso privado · TikTok Shop</div>
+</form>
+<script>if(location.search.indexOf('error')>-1){document.getElementById('err').classList.add('show');}</script>
+</body>
+</html>

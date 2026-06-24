@@ -1,5 +1,6 @@
 import asyncio
-import base64
+import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -11,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -48,30 +49,62 @@ app.mount("/factory", StaticFiles(directory="factory"), name="factory")
 
 # ─── Acceso (contraseña para publicar la app a internet de forma segura) ──────
 # Si NO defines APP_PASSWORD en el .env → app abierta (uso local cómodo).
-# Si la defines, se exige usuario+contraseña en TODA la app — imprescindible al
+# Si la defines, se exige la contraseña en TODA la app — imprescindible al
 # exponerla por un túnel (Cloudflare) para que nadie más gaste tus créditos.
-_APP_USER = os.getenv("APP_USER", "admin")
+# Usamos una pantalla de login propia (static/login.html) + una cookie firmada
+# derivada de la clave, en vez del cuadro nativo del navegador (Basic Auth).
 _APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+_AUTH_COOKIE = "fabrica_auth"
+
+
+def _auth_token() -> str:
+    # Token estable derivado de la clave: sobrevive reinicios y se invalida solo
+    # si cambias APP_PASSWORD (cambiar la clave desloguea a todos).
+    return hmac.new(_APP_PASSWORD.encode(), b"fabrica-auth-v1", hashlib.sha256).hexdigest()
+
+
+def _authed(request: Request) -> bool:
+    tok = request.cookies.get(_AUTH_COOKIE, "")
+    return bool(tok) and secrets.compare_digest(tok, _auth_token())
 
 
 @app.middleware("http")
 async def _password_gate(request: Request, call_next):
-    if _APP_PASSWORD:
-        hdr = request.headers.get("authorization", "")
-        ok = False
-        if hdr.startswith("Basic "):
-            try:
-                user, _, pwd = base64.b64decode(hdr[6:]).decode("utf-8").partition(":")
-                ok = (secrets.compare_digest(user, _APP_USER)
-                      and secrets.compare_digest(pwd, _APP_PASSWORD))
-            except Exception:
-                ok = False
-        if not ok:
-            return Response(
-                status_code=401,
-                headers={"WWW-Authenticate": 'Basic realm="Fabrica de creativos"'},
-            )
-    return await call_next(request)
+    if not _APP_PASSWORD:
+        return await call_next(request)
+    path = request.url.path
+    if path in ("/login", "/logout") or _authed(request):
+        return await call_next(request)
+    if path.startswith("/api/"):
+        # Petición de datos sin sesión → 401 claro (lo maneja el front).
+        return JSONResponse({"detail": "No autorizado"}, status_code=401)
+    # Navegación sin sesión → a la pantalla de login.
+    return RedirectResponse("/login", status_code=303)
+
+
+@app.get("/login")
+async def login_page(request: Request):
+    if not _APP_PASSWORD or _authed(request):
+        return RedirectResponse("/", status_code=303)
+    return FileResponse("static/login.html", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/login")
+async def login_submit(password: str = Form("")):
+    if _APP_PASSWORD and secrets.compare_digest(password, _APP_PASSWORD):
+        resp = RedirectResponse("/", status_code=303)
+        resp.set_cookie(_AUTH_COOKIE, _auth_token(),
+                        max_age=60 * 60 * 24 * 30,  # 30 días
+                        httponly=True, samesite="lax", path="/")
+        return resp
+    return RedirectResponse("/login?error=1", status_code=303)
+
+
+@app.get("/logout")
+async def logout():
+    resp = RedirectResponse("/login" if _APP_PASSWORD else "/", status_code=303)
+    resp.delete_cookie(_AUTH_COOKIE, path="/")
+    return resp
 
 
 @app.get("/")

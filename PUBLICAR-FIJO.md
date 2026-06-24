@@ -51,8 +51,8 @@ Todo desde el celular, una sola vez (~10 min + espera de activación):
 ## Cómo usarla cada día
 1. En tu PC, doble clic en **`iniciar.bat`** (solo arranca la app; ya **no**
    necesitas `publicar.bat` ni copiar URLs).
-2. En el celular abre **https://fabrica-creator.com** → te pide usuario y
-   contraseña (los de tu `.env`) → entras.
+2. En el celular abre **https://fabrica-creator.com** → te muestra una pantalla
+   de login → escribís la contraseña (la de tu `.env`) → entras.
 3. Para apagar: cierra la ventana de la app.
 
 ## Notas
