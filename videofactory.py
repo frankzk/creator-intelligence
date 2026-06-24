@@ -14,6 +14,8 @@ import shutil
 import subprocess
 import threading
 import time
+import unicodedata
+from datetime import datetime
 from itertools import product as cartesian
 from pathlib import Path
 
@@ -648,6 +650,13 @@ def _combos_worker(campaign_id: int, persona: str, product_name: str,
             _combos_running = False
 
 
+def _one_word(text: str, fallback: str) -> str:
+    """Primera palabra en minúsculas y sin acentos (solo [a-z0-9]), para archivos."""
+    ascii_txt = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii")
+    words = re.findall(r"[A-Za-z0-9]+", ascii_txt)
+    return words[0].lower() if words else fallback
+
+
 def _generate_combos(campaign_id: int, persona: str, product_name: str,
                      min_dur: float, max_dur: float, mode: str = "focused"):
     from analyzer import score_and_caption_combos
@@ -669,6 +678,11 @@ def _generate_combos(campaign_id: int, persona: str, product_name: str,
         triples = _focused_triples(by_type)
 
     existing = {r["name"] for r in conn.execute("SELECT name FROM factory_combos").fetchall()}
+    # Prefijo legible para los nombres de archivo: fecha_producto_avatar
+    camp = conn.execute("SELECT name FROM factory_campaigns WHERE id=?", (campaign_id,)).fetchone()
+    prod_word = _one_word(product_name or (camp["name"] if camp else ""), "producto")
+    avatar_word = _one_word(persona, "avatar")
+    file_prefix = f"{datetime.now().strftime('%Y%m%d')}_{prod_word}_{avatar_word}"
     new_combos = []
     totals = []
     seen = set()
@@ -690,7 +704,8 @@ def _generate_combos(campaign_id: int, persona: str, product_name: str,
             "INSERT INTO factory_combos (campaign_id, persona, name, hook_id, body_id, cta_id, duration) VALUES (?,?,?,?,?,?,?)",
             (campaign_id, persona or "", name, h["id"], b["id"], c["id"], round(total, 2)),
         )
-        new_combos.append({"name": name, "hook": h, "body": b, "cta": c})
+        new_combos.append({"name": name, "filename": f"{file_prefix}_{name}",
+                           "hook": h, "body": b, "cta": c})
     conn.commit()
 
     # Aviso visible en la UI cuando no salió nada — explica el porqué
@@ -731,7 +746,7 @@ def _generate_combos(campaign_id: int, persona: str, product_name: str,
 
     # Concat por combo (rápido: -c copy)
     for combo in new_combos:
-        out = OUT_DIR / f"{combo['name']}.mp4"
+        out = OUT_DIR / f"{combo['filename']}.mp4"
         try:
             concat(
                 [combo["hook"]["seg_path"], combo["body"]["seg_path"], combo["cta"]["seg_path"]],
@@ -779,6 +794,7 @@ def write_manifest() -> Path:
     rows = conn.execute("""
         SELECT co.name, co.duration, co.score, co.score_reason, co.caption,
                co.output_path, co.views, co.likes, co.gmv, co.published_at, co.status,
+               co.persona AS avatar,
                h.label AS hook, h.overlay_text AS hook_text,
                b.label AS body, c.label AS cta,
                ca.name AS campaign
@@ -793,11 +809,11 @@ def write_manifest() -> Path:
     path = OUT_DIR / "manifest.csv"
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["campaña", "video", "archivo", "duracion_s", "score", "razon",
+        w.writerow(["campaña", "avatar", "video", "archivo", "duracion_s", "score", "razon",
                     "caption", "hook", "texto_hook", "cuerpo", "cta", "views", "likes",
                     "gmv", "publicado", "estado"])
         for r in rows:
-            w.writerow([r["campaign"], r["name"], Path(r["output_path"] or "").name,
+            w.writerow([r["campaign"], r["avatar"], r["name"], Path(r["output_path"] or "").name,
                         r["duration"], r["score"], r["score_reason"], r["caption"],
                         r["hook"], r["hook_text"], r["body"], r["cta"], r["views"],
                         r["likes"], r["gmv"], r["published_at"], r["status"]])
