@@ -245,6 +245,25 @@ tr:hover td{background:var(--hover)}
 .modit .lbl{font-weight:700;font-size:13px;margin-right:6px}
 .modit .meta{color:var(--t3);font-size:11px;margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .modit .ov{color:var(--t2);font-size:11px;margin-top:3px;font-style:italic}
+.modit-top{display:flex;align-items:center;gap:9px}
+.modit-id{min-width:0;display:flex;flex-direction:column;gap:1px}
+.modit-nm{color:var(--t2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mod-prev{width:40px;height:54px;border-radius:6px;object-fit:cover;background:#000;flex:none;cursor:pointer}
+.mod-prev-x{display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--t4);background:var(--bg)}
+.q-prev{width:52px;height:70px;border-radius:7px;object-fit:cover;background:#000;flex:none;cursor:pointer}
+.dash{border:1px solid var(--bdl);border-radius:12px;padding:12px 14px;margin-bottom:14px;background:var(--card)}
+.dash-hd{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:8px}
+.dash-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--bdl);flex-wrap:wrap}
+.dash-row:first-of-type{border-top:none}
+.dash-who{font-size:13px;font-weight:600;cursor:pointer;min-width:130px;flex:none;color:var(--t)}
+.dash-row.active .dash-who{color:var(--p)}
+.dash-cells{display:flex;gap:7px;flex-wrap:wrap;align-items:center;flex:1}
+.dash-cell{font-size:12px;color:var(--t2);background:var(--bg);border:1px solid var(--bdl);border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap}
+.dash-cell:hover{border-color:var(--p);color:var(--p)}
+.dash-cell.warn{border-color:var(--a)}
+.dash-cell b{color:var(--t)}
+.dash-next{font-size:11.5px;font-weight:600;color:#fff;background:var(--p);border-radius:7px;padding:5px 11px;cursor:pointer;white-space:nowrap;margin-left:auto}
+@media (max-width:760px){.dash-who{min-width:0;width:100%}.dash-next{margin-left:0}}
 .qwrap{display:flex;gap:10px;flex-wrap:wrap}
 .qcard{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;min-width:180px;flex:1;max-width:240px;background:var(--bg)}
 .qcard .nm{font-weight:700;font-size:13px;margin-bottom:4px}
@@ -380,6 +399,29 @@ body{background:var(--mesh);background-attachment:fixed}
   .psel{padding:12px}
   .mc2{width:92vw}
 }
+/* ── UI kit: toasts, diálogos, edición inline ── */
+.tw{position:fixed;z-index:300;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column-reverse;gap:8px;width:min(380px,calc(100vw - 24px));pointer-events:none}
+.to{pointer-events:auto;display:flex;align-items:flex-start;gap:9px;padding:11px 13px;border-radius:var(--rad);background:var(--card);border:1px solid var(--bd);box-shadow:var(--shadow);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);font-size:13px;color:var(--t);cursor:pointer;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .2s}
+.to.in{opacity:1;transform:none}
+.to-ic{flex:none;line-height:1.4}
+.to-msg{flex:1;line-height:1.45;word-break:break-word}
+.to-act{flex:none;font-size:12px;font-weight:700;color:var(--p);text-decoration:underline;cursor:pointer}
+.to.success{border-color:var(--g);background:var(--gl)}
+.to.error{border-color:var(--r);background:var(--rl)}
+.to.warn{border-color:var(--a);background:var(--al)}
+.to.info{border-color:var(--p)}
+.bok.danger{background:var(--r)}
+.mo-msg{font-size:13.5px;line-height:1.55;color:var(--t2);white-space:pre-wrap}
+.mo-ta{width:100%;min-height:120px;resize:vertical;font:inherit;padding:9px 11px;border:1px solid var(--bd);border-radius:7px;background:var(--field);color:var(--t);line-height:1.5;box-sizing:border-box}
+.mo-err{color:var(--r);font-size:12px;margin-top:7px;min-height:1px}
+.mo-choices{display:flex;flex-direction:column;gap:7px;max-height:50vh;overflow:auto}
+.mo-choice{display:flex;flex-direction:column;gap:2px;text-align:left;width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--card);cursor:pointer;color:var(--t);transition:all .12s}
+.mo-choice:hover{border-color:var(--p);background:var(--pl)}
+.mo-choice-l{font-size:13.5px;font-weight:600}
+.mo-choice-s{font-size:11.5px;color:var(--t3)}
+.sc-edit{width:100%;min-height:84px;resize:vertical;font:inherit;line-height:1.55;padding:8px 10px;border:1px solid var(--p);border-radius:6px;background:var(--field);color:var(--t);box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){.to{transition:none;transform:none}}
+@media (max-width:760px){.tw{left:8px;right:8px;width:auto;transform:none;flex-direction:column;top:calc(54px + env(safe-area-inset-top));bottom:auto}}
 </style>
 </head>
 <body>
@@ -596,7 +638,7 @@ function startPoll(id,isC){
 
 async function refC(id){
   try{await api('POST',`/api/creators/${id}/refresh`);const i=S.creators.findIndex(c=>c.id===id);if(i>=0)S.creators[i].status='scraping';renderSB();if(S.cid===id)await selC(id);else startPoll(id,true);}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 
 /* ── Script Form ── */
@@ -651,13 +693,13 @@ async function doUpload(e){
   const file=e.target.files[0];if(!file)return;
   const fd=new FormData();fd.append('file',file);
   try{const r=await fetch('/api/upload',{method:'POST',body:fd});const d=await r.json();S.form.imgf=d.filename;S.form.imgu=d.url;renderScriptForm();}
-  catch(err){alert('Error subiendo imagen: '+err.message);}
+  catch(err){toast('Error subiendo imagen: '+err.message,'error');}
 }
 async function doGenerate(){
-  const f=S.form;if(!f.name.trim()){alert('Ingresa el nombre del producto');return;}
+  const f=S.form;if(!f.name.trim()){toast('Ingresa el nombre del producto','error');return;}
   S.gen=true;S.scripts=[];renderScriptForm();
   try{const d=await api('POST','/api/scripts/generate',{product_name:f.name,benefit:f.benefit,mode:f.mode,creator_ids:f.cids,product_ids:f.pids,quantity:f.qty,image_filename:f.imgf});S.scripts=d.scripts||[];}
-  catch(e){alert('Error: '+e.message);}
+  catch(e){toast('Error: '+e.message,'error');}
   S.gen=false;renderScriptForm();
 }
 
@@ -717,7 +759,7 @@ function dlScript(i){
   a.download=`script-${i+1}.txt`;a.click();URL.revokeObjectURL(a.href);
 }
 function cpTxt(txt,btn){
-  navigator.clipboard.writeText(txt).then(()=>{if(btn){const o=btn.textContent;btn.textContent='✓';setTimeout(()=>btn.textContent=o,1500);}}).catch(()=>alert('No se pudo copiar'));
+  navigator.clipboard.writeText(txt).then(()=>{if(btn){const o=btn.textContent;btn.textContent='✓';setTimeout(()=>btn.textContent=o,1500);}}).catch(()=>toast('No se pudo copiar','error'));
 }
 
 /* ── Product ── */
@@ -786,27 +828,118 @@ function openModal(type){
   }
   setTimeout(()=>document.querySelector('#mo-b .fi')?.focus(),50);
 }
-function closeMo(e){if(!e||e.target===$('mo'))$('mo').classList.add('h');}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')$('mo').classList.add('h');});
+function closeMo(e){if(!e||e.target===$('mo')){const mo=$('mo');if(mo._dlg)mo._dlg.cancel();else mo.classList.add('h');}}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const mo=$('mo');if(mo.classList.contains('h'))return;if(mo._dlg)mo._dlg.cancel();else mo.classList.add('h');}});
+
+/* ── UI kit: toasts ── */
+const TOAST_ICON={success:'✅',error:'⚠️',warn:'⚠️',info:'ℹ️'};
+const TOAST_MS={success:3200,info:3200,warn:5000,error:6500};
+function toastWrap(){let w=$('tw');if(!w){w=document.createElement('div');w.id='tw';w.className='tw';document.body.appendChild(w);}return w;}
+function toast(msg,type='info',opts={}){
+  const w=toastWrap();
+  if(opts.id){const ex=w.querySelector('[data-tid="'+opts.id+'"]');if(ex&&ex._upd){ex._upd(msg);return ex._h;}}
+  while(w.children.length>=4&&w.firstChild._close)w.firstChild._close();
+  const el=document.createElement('div');
+  el.className='to '+type;if(opts.id)el.dataset.tid=opts.id;
+  const ic=document.createElement('span');ic.className='to-ic';ic.textContent=TOAST_ICON[type]||'';
+  const sp=document.createElement('span');sp.className='to-msg';sp.textContent=String(msg==null?'':msg);
+  el.appendChild(ic);el.appendChild(sp);
+  if(opts.action){const a=document.createElement('span');a.className='to-act';a.textContent=opts.action;
+    a.onclick=ev=>{ev.stopPropagation();try{opts.onAction&&opts.onAction();}finally{el._close();}};el.appendChild(a);}
+  let timer;
+  const ms=opts.timeout!=null?opts.timeout:(TOAST_MS[type]||3200)+(opts.action?2000:0);
+  el._close=()=>{if(el._done)return;el._done=true;clearTimeout(timer);el.classList.remove('in');setTimeout(()=>el.remove(),200);};
+  el._arm=()=>{clearTimeout(timer);if(ms>0)timer=setTimeout(el._close,ms);};
+  el._upd=t=>{sp.textContent=String(t==null?'':t);el._arm();};
+  el._h={close:el._close};
+  el.onclick=()=>el._close();
+  w.appendChild(el);requestAnimationFrame(()=>el.classList.add('in'));el._arm();
+  return el._h;
+}
+function toastErr(e){return toast(typeof e==='string'?e:((e&&e.message)||'Error'),'error');}
+function toastOk(m,o){return toast(m,'success',o);}
+
+/* ── UI kit: diálogos basados en promesas sobre #mo ── */
+function moTeardown(){
+  const ok=$('mo-ok');ok.onclick=null;ok.disabled=false;ok.style.display='';ok.classList.remove('danger');
+  const bcl=document.querySelector('#mo .ma .bcl');if(bcl)bcl.style.display='';
+  const mo=$('mo');mo._dlg=null;mo.classList.add('h');
+}
+function moDialog({title,bodyHTML,okText='OK',danger=false,showCancel=true,onOk,focusSel}){
+  return new Promise(resolve=>{
+    let settled=false;
+    const fin=v=>{if(settled)return;settled=true;moTeardown();resolve(v);};
+    const mo=$('mo');mo.classList.remove('h');
+    $('mo-t').textContent=title||'';
+    $('mo-b').innerHTML=bodyHTML||'';
+    const ok=$('mo-ok');
+    ok.textContent=okText;ok.classList.toggle('danger',!!danger);ok.style.display='';
+    const bcl=document.querySelector('#mo .ma .bcl');if(bcl)bcl.style.display=showCancel?'':'none';
+    ok.onclick=()=>{const v=onOk?onOk():true;if(v!==undefined)fin(v);};
+    mo._dlg={cancel:()=>fin(showCancel?null:false),resolve:fin};
+    setTimeout(()=>{const f=focusSel&&document.querySelector(focusSel);(f||ok).focus();if(f&&f.select)try{f.select();}catch(_){}},50);
+  });
+}
+function confirmDialog({title,message,okText='Aceptar',danger=false}){
+  return moDialog({title,okText,danger,bodyHTML:'<div class="mo-msg">'+esc(message||'')+'</div>',onOk:()=>true});
+}
+function alertDialog({title,message,okText='Entendido'}){
+  return moDialog({title,okText,showCancel:false,bodyHTML:'<div class="mo-msg">'+esc(message||'')+'</div>',onOk:()=>true});
+}
+function promptDialog({title,label,value='',multiline=false,placeholder='',numeric=false,validate}){
+  const id='mo-pi';
+  const field=multiline
+    ? '<textarea class="mo-ta" id="'+id+'" placeholder="'+esc(placeholder)+'">'+esc(value)+'</textarea>'
+    : '<input class="fi" id="'+id+'" type="'+(numeric?'number':'text')+'" placeholder="'+esc(placeholder)+'" value="'+esc(value)+'">';
+  return moDialog({title,okText:'Guardar',focusSel:'#'+id,
+    bodyHTML:(label?'<label class="fl" style="display:block;margin-bottom:6px">'+esc(label)+'</label>':'')+field+'<div class="mo-err" id="mo-err"></div>',
+    onOk:()=>{const raw=$(id).value;const v=multiline?raw:raw.trim();const err=validate?validate(v):null;if(err){$('mo-err').textContent=err;return undefined;}return v;}});
+}
+function choiceDialog({title,message,options}){
+  return new Promise(resolve=>{
+    moDialog({title,showCancel:true,okText:'',
+      bodyHTML:(message?'<div class="mo-msg" style="margin-bottom:10px">'+esc(message)+'</div>':'')+'<div class="mo-choices">'+options.map((o,i)=>'<button class="mo-choice" data-i="'+i+'"><span class="mo-choice-l">'+esc(o.label)+'</span>'+(o.sub?'<span class="mo-choice-s">'+esc(o.sub)+'</span>':'')+'</button>').join('')+'</div>',
+      onOk:()=>undefined}).then(v=>resolve(v));
+    $('mo-ok').style.display='none';
+    document.querySelectorAll('#mo-b .mo-choice').forEach(b=>b.onclick=()=>{const v=options[+b.dataset.i].value;const mo=$('mo');if(mo._dlg)mo._dlg.resolve(v);});
+  });
+}
+
+/* ── UI kit: toasts de estado de tareas IA (diff entre polls) ── */
+function fyDiffStatus(prev,cur){
+  if(!prev||!cur)return;
+  const done=k=>prev[k]&&!cur[k];      // true→false = tarea terminó
+  const got=k=>!prev[k]&&cur[k];       // apareció (errores/notas son strings)
+  if(done('scripts_generating')&&!cur.scripts_error)toast('✨ Guiones listos','success',{id:'st-scripts'});
+  if(done('personas_researching')&&!cur.personas_error)toast('🔍 Buyer personas listas','success',{id:'st-personas'});
+  if(done('research_running'))toast('📝 Transcripciones listas','success',{id:'st-research'});
+  if(done('combos_running')&&!cur.combos_note)toast('🎬 Videos generados','success',{id:'st-combos'});
+  if(done('edits_running')&&!cur.edit_note)toast('✂️ Edición IA terminada','success',{id:'st-edits'});
+  if(done('pipeline_running'))toast('⚙️ Módulos procesados','success',{id:'st-pipe'});
+  if(got('scripts_error'))toast('No se pudieron generar guiones: '+cur.scripts_error,'error',{id:'st-scripts',action:'reintentar',onAction:()=>{if(typeof fyGenScripts==='function')fyGenScripts();}});
+  if(got('personas_error'))toast('No se pudo investigar personas: '+cur.personas_error,'error',{id:'st-personas',action:'reintentar',onAction:()=>{if(typeof fyResearchPersonas==='function')fyResearchPersonas();}});
+  if(got('combos_note'))toast('⚠ '+cur.combos_note,'warn',{id:'st-combos'});
+  if(got('edit_note'))toast('✂ '+cur.edit_note,'warn',{id:'st-edits'});
+}
 
 async function subCreator(){
   const url=$('m-url')?.value?.trim();const name=$('m-name')?.value?.trim();
-  if(!url){alert('Ingresa la URL del perfil');return;}
+  if(!url){toast('Ingresa la URL del perfil','error');return;}
   const btn=$('mo-ok');btn.disabled=true;btn.textContent='Agregando...';
   try{
     const d=await api('POST','/api/creators',{url,display_name:name});
     S.creators.unshift({id:d.id,username:d.username,display_name:name||d.username,status:'scraping',video_count:0,niche:'Extrayendo...'});
     renderSB();$('mo').classList.add('h');startPoll(d.id,true);selC(d.id);
-  }catch(e){alert(e.message);btn.disabled=false;btn.textContent='Agregar y analizar';}
+  }catch(e){toastErr(e);btn.disabled=false;btn.textContent='Agregar y analizar';}
 }
 async function subProduct(){
-  const kw=$('m-kw')?.value?.trim();if(!kw){alert('Ingresa una keyword');return;}
+  const kw=$('m-kw')?.value?.trim();if(!kw){toast('Ingresa una keyword','error');return;}
   const btn=$('mo-ok');btn.disabled=true;btn.textContent='Buscando...';
   try{
     const d=await api('POST','/api/products/search',{keyword:kw});
     S.products.unshift({id:d.id,keyword:kw,status:'scraping',total_videos:0});
     renderSB();$('mo').classList.add('h');startPoll(d.id,false);selP(d.id);
-  }catch(e){alert(e.message);btn.disabled=false;btn.textContent='Buscar y analizar';}
+  }catch(e){toastErr(e);btn.disabled=false;btn.textContent='Buscar y analizar';}
 }
 
 /* ── Fábrica de creativos ── */
@@ -856,7 +989,7 @@ function sQueue(){return sList(F.combos).filter(c=>c.status==='ready'&&!c.publis
 async function fyPickPhoto(fn){
   if(!F.camp||fn===F.prodImg)return;
   try{await api('PATCH','/api/factory/campaigns/'+F.camp,{product_image:fn});await loadCamps();renderFyForm();await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 
 async function loadFactory(){
@@ -869,7 +1002,7 @@ async function loadFactory(){
       api('GET',`/api/factory/attribution?${q}`),api('GET',`/api/factory/research?${q}`),
       api('GET',`/api/factory/scripts?${q}`)
     ]);
-    F.mods=mods;F.combos=combos;F.status=status;F.attr=attr;
+    F.mods=mods;F.combos=combos;fyDiffStatus(F._prevStatus,status);F._prevStatus=status;F.status=status;F.attr=attr;
     F.research=research;F.scripts=sc.scripts||[];F.angles=sc.angle_map||[];F.personas=sc.personas||[];F.personaCandidates=sc.persona_candidates||[];
     renderFyLists();
   }catch(e){$('fy-lists').innerHTML=`<p style="color:var(--r)">${esc(e.message)}</p>`;}
@@ -890,15 +1023,15 @@ async function fyNewCampPhoto(e){
     const c=await api('POST','/api/factory/campaigns/from-photo',{image_filename:d.filename});
     F.camp=c.id;localStorage.setItem('fy_camp',c.id);F.prod=c.name;localStorage.setItem('fy_prod',c.name);F.manual=null;
     await loadCamps();renderFyForm();await loadFactory();
-  }catch(err){alert('Error creando la campaña: '+err.message);}
+  }catch(err){toast('Error creando la campaña: '+err.message,'error');}
 }
 async function fyArchiveCamp(){
   const c=F.camps.find(x=>x.id===F.camp);if(!c)return;
-  if(!confirm(`¿Archivar "${c.name}"? Sus módulos y videos se conservan pero salen de la vista.`))return;
+  if(!await confirmDialog({title:'Archivar campaña',message:`¿Archivar "${c.name}"? Sus módulos y videos se conservan pero salen de la vista.`,okText:'Archivar',danger:true}))return;
   try{
     await api('PATCH',`/api/factory/campaigns/${c.id}`,{status:'archived'});
     F.camp=null;await loadCamps();renderFyForm();await loadFactory();
-  }catch(e){alert(e.message);}
+  }catch(e){toastErr(e);}
 }
 function fySelCamp(id){
   F.camp=+id;localStorage.setItem('fy_camp',F.camp);F.manual=null;
@@ -1020,6 +1153,7 @@ function renderFyForm(){
   <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Tu ciclo semanal en 5 pasos — el banner morado te dice dónde vas</div>
   ${campBar}
   <div id="fy-personabar"></div>
+  <div id="fy-dash"></div>
   <div id="fy-next"></div>
   <div id="fy-chips"></div>
   ${fyStepShell(1,'🧠 Guiones por buyer persona',paso1)}
@@ -1048,29 +1182,29 @@ function fyApplyOpen(){
 }
 
 async function fyAddResearch(){
-  if(!F.camp){alert('Crea o selecciona una campaña primero');return;}
+  if(!F.camp){toast('Crea o selecciona una campaña primero','error');return;}
   const ta=$('fy-rl');
   const urls=(ta?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  if(!urls.length){alert('Pega al menos un link de TikTok');return;}
+  if(!urls.length){toast('Pega al menos un link de TikTok','error');return;}
   try{
     await api('POST','/api/factory/research',{campaign_id:F.camp,urls});
     ta.value='';await loadFactory();
-  }catch(e){alert(e.message);}
+  }catch(e){toastErr(e);}
 }
 async function fyPasteTranscript(){
-  const txt=prompt('Pega la transcripción del video ganador:');
-  if(!txt||!txt.trim())return;
+  const txt=await promptDialog({title:'Pegar transcripción',label:'Transcripción del video ganador',multiline:true,placeholder:'Pega aquí el texto…'});
+  if(txt===null||!txt.trim())return;
   try{await api('POST','/api/factory/research',{campaign_id:F.camp,urls:[],transcript:txt});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyDelResearch(id){
   try{await api('DELETE','/api/factory/research/'+id);await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyRetryResearch(url){
   if(!url)return;
   try{await api('POST','/api/factory/research',{campaign_id:F.camp,urls:[url]});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyShowTr(id){
   if(F.trOpen===id){F.trOpen=null;renderFyStudio();return;}
@@ -1092,7 +1226,7 @@ async function fyUploadPhoto(e){
     await api('PATCH','/api/factory/campaigns/'+F.camp,{product_image:d.filename});
     await loadCamps();renderFyForm();await loadFactory();
     const bi=$('fy-brief');if(bi)bi.value=brief;
-  }catch(err){alert('Error subiendo foto: '+err.message);}
+  }catch(err){toast('Error subiendo foto: '+err.message,'error');}
 }
 function fyToggleAdv(){
   F.advOpen=!F.advOpen;
@@ -1134,70 +1268,74 @@ function renderFyPersonaBar(){
 function fyNewPersona(){F.manual=1;fyApplyOpen();const bi=$('fy-brief');if(bi){bi.value='';bi.focus();}}
 async function fyResearchPersonas(){
   if(!F.camp)return;
-  if(!F.prodImg){alert('Sube la foto del producto primero');return;}
+  if(!F.prodImg){toast('Sube la foto del producto primero','error');return;}
   try{await api('POST','/api/factory/personas/research',{campaign_id:F.camp});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 function fyUsePersona(name){const bi=$('fy-brief');if(bi){bi.value=name;bi.focus();}}
 async function fyUsePersonaGen(name){const bi=$('fy-brief');if(bi)bi.value=name;await fyGenScripts();}
 function fyTab(key){fySetPersona(key);renderFyLists();}
 function fyCtxTog(){F.ctxOpen=!F.ctxOpen;renderFyStudio();}
 async function fyRemovePersona(name){
-  if(!confirm(`¿Quitar "${name}" y TODOS sus guiones de esta campaña? (úsalo si esta persona es de otro producto)`))return;
+  if(!await confirmDialog({title:'Quitar persona',message:`¿Quitar "${name}" y TODOS sus guiones de esta campaña? (úsalo si esta persona es de otro producto)`,okText:'Quitar',danger:true}))return;
   try{fySetPersona('');await api('POST','/api/factory/personas/remove',{campaign_id:F.camp,persona:name});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyRenamePersona(name){
-  const nn=prompt('Nuevo nombre para esta persona:',name);
+  const nn=await promptDialog({title:'Renombrar persona',label:'Nuevo nombre',value:name,validate:s=>s.trim()?null:'El nombre no puede quedar vacío'});
   if(nn===null)return;const v=nn.trim();
-  if(!v){alert('El nombre no puede quedar vacío');return;}
   if(v===name)return;
   try{await api('POST','/api/factory/personas/rename',{campaign_id:F.camp,old_name:name,new_name:v});fySetPersona(v);await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyMovePersona(name){
   const others=F.camps.filter(c=>c.id!==F.camp);
-  if(!others.length){alert('No tienes otra campaña a dónde mover. Crea una primero (＋ Nueva campaña).');return;}
-  const list=others.map((c,i)=>`${i+1}) ${c.name}`).join('\n');
-  const pick=prompt(`Mover «${name}» y TODO lo suyo (guiones, módulos y videos) a otra campaña.\n\nEscribe el número de destino:\n\n${list}`);
-  if(pick===null)return;
-  const idx=parseInt(pick,10)-1;
-  if(isNaN(idx)||idx<0||idx>=others.length){alert('Número inválido');return;}
-  const target=others[idx];
-  if(!confirm(`¿Mover «${name}» a «${target.name}»? Se lleva sus guiones, módulos y videos.`))return;
+  if(!others.length){toast('No tienes otra campaña a dónde mover. Crea una primero (＋ Nueva campaña).','warn');return;}
+  const tid=await choiceDialog({title:'Mover persona',message:`Elige la campaña destino para «${name}» (se lleva sus guiones, módulos y videos)`,options:others.map(c=>({label:c.name,value:c.id}))});
+  if(tid===null)return;
+  const target=others.find(c=>c.id===tid);if(!target)return;
+  if(!await confirmDialog({title:'Mover persona',message:`¿Mover «${name}» a «${target.name}»? Se lleva sus guiones, módulos y videos.`,okText:'Mover'}))return;
   try{fySetPersona('');await api('POST','/api/factory/personas/move',{campaign_id:F.camp,persona:name,to_campaign_id:target.id});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyGenScripts(){
   if(!F.camp)return;
   const hasVids=F.research.filter(r=>r.status==='done').length;
-  if(!F.prodImg&&!hasVids){alert('Sube la foto del producto para generar guiones');return;}
+  if(!F.prodImg&&!hasVids){toast('Sube la foto del producto para generar guiones','error');return;}
   const brief=($('fy-brief')?.value||'').trim();
   // Confirmación de campaña (evita generar en el producto equivocado al tener varias)
   if(F.camps.length>1){
     const c=F.camps.find(x=>x.id===F.camp);
     const who=brief?`la persona «${brief}»`:'una persona nueva (la IA la elige)';
-    if(!confirm(`Vas a generar guiones para el producto:\n\n   «${c?c.name:''}»  →  ${who}\n\n¿Es la campaña correcta?`))return;
+    if(!await confirmDialog({title:'Confirmar campaña',message:`Vas a generar guiones para el producto:\n\n   «${c?c.name:''}»  →  ${who}\n\n¿Es la campaña correcta?`,okText:'Sí, generar'}))return;
   }
   try{
     await api('POST','/api/factory/scripts/generate',{campaign_id:F.camp,product_name:F.prod,brief,image_filename:F.prodImg||''});
     await loadFactory();
     if(F.personas.length)fySetPersona(F.personas[F.personas.length-1].name);
     renderFyLists();
-  }catch(e){alert(e.message);}
+  }catch(e){toastErr(e);}
 }
 async function fyScriptSt(id,st){
   try{await api('PATCH','/api/factory/scripts/'+id,{status:st});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
-async function fyEditScript(id){
+function fyEditScript(id){
+  F.editScript=id;renderFyStudio();
+  setTimeout(()=>{const t=$('sc-edit-'+id);if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}},30);
+}
+function fyCancelScript(){F.editScript=null;renderFyStudio();}
+async function fySaveScript(id){
   const s=F.scripts.find(x=>x.id===id);if(!s)return;
-  const t=prompt('Edita el guion (voz en off). Cambia palabras o tono a tu gusto:',s.text||'');
-  if(t===null)return;const txt=t.trim();
-  if(!txt){alert('El guion no puede quedar vacío');return;}
-  if(txt===s.text)return;
-  try{await api('PATCH','/api/factory/scripts/'+id,{text:txt});await loadFactory();}
-  catch(e){alert(e.message);}
+  const txt=($('sc-edit-'+id)?.value||'').trim();
+  if(!txt){toast('El guion no puede quedar vacío','error');return;}
+  if(txt===s.text){F.editScript=null;renderFyStudio();return;}
+  try{
+    s.text=txt;F.editScript=null;        // optimista: se ve al instante
+    await api('PATCH','/api/factory/scripts/'+id,{text:txt});
+    toastOk('Guion actualizado');
+    await loadFactory();
+  }catch(e){toastErr(e);await loadFactory();}
 }
 
 // ── Subida masiva: suelta todos los clips y clasifica cada uno antes de subir ──
@@ -1217,7 +1355,7 @@ function fyStageAdd(e){
     F.stage.push({uid:(F._uid=(F._uid||0)+1),file:f,name:f.name,type:fyGuessType(f.name),script:'',overlay:'',status:'',progress:0,url:''});added++;
   }
   if(e.target&&e.target.value!==undefined)e.target.value='';
-  if(!added&&files.length)alert('Formato no soportado (usa mp4, mov, m4v, webm o mkv).');
+  if(!added&&files.length)toast('Formato no soportado (usa mp4, mov, m4v, webm o mkv).','warn');
   renderStage();
 }
 function fyDrop(e){e.preventDefault();const dz=$('fy-dz');if(dz)dz.classList.remove('drag');fyStageAdd({dataTransfer:e.dataTransfer});}
@@ -1255,7 +1393,7 @@ async function fyUploadItem(it){
 }
 async function fyRetryItem(uid){
   if(F.upBusy)return;
-  if(!F.camp){alert('Crea o selecciona una campaña primero');return;}
+  if(!F.camp){toast('Crea o selecciona una campaña primero','error');return;}
   const it=F.stage.find(x=>x.uid===uid); if(!it)return;
   F.upBusy=true;renderStage();
   await fyUploadItem(it);
@@ -1326,9 +1464,9 @@ function renderStage(){
   const _fb=$('fy-faltan');if(_fb)_fb.innerHTML=fyFaltanBanner();
 }
 async function fyStageUpload(){
-  if(!F.camp){alert('Crea o selecciona una campaña primero');return;}
+  if(!F.camp){toast('Crea o selecciona una campaña primero','error');return;}
   const todo=F.stage.filter(x=>x.status!=='done'&&x.status!=='uploading');
-  if(!todo.length){alert('Arrastra o elige tus clips primero');return;}
+  if(!todo.length){toast('Arrastra o elige tus clips primero','warn');return;}
   if(F.upBusy)return;F.upBusy=true;renderStage();
   for(const it of todo){ await fyUploadItem(it); }   // cada uno sube/falla por separado
   F.upBusy=false;
@@ -1363,9 +1501,11 @@ function fyStats(){
 function fyModItem(m){
   const dc=m.status==='ready'?'dg':m.status==='error'?'dr':'da dp';
   const prev=m.seg_path?` · <a class="lnk" href="${furl(m.seg_path)}" target="_blank">ver</a>`:'';
+  const poster=m.seg_path
+    ?`<video class="mod-prev" src="${furl(m.seg_path)}#t=0.1" preload="metadata" playsinline title="toca para ver/oír" onclick="document.querySelectorAll('.mod-prev,.q-prev,.stg-prev').forEach(v=>{if(v!==this)v.pause()});this.paused?this.play():this.pause()"></video>`
+    :`<div class="mod-prev mod-prev-x" title="${esc(MOD_ST[m.status]||m.status)}">🎬</div>`;
   return`<div class="modit">
-    <span class="lbl">${esc(m.label)}</span>
-    <span title="${esc(m.transcript||'')}">${esc((m.original_name||'').slice(0,24))}</span>
+    <div class="modit-top">${poster}<div class="modit-id"><span class="lbl">${esc(m.label)}</span><span class="modit-nm" title="${esc(m.transcript||'')}">${esc((m.original_name||'').slice(0,24))}</span></div></div>
     <div class="meta"><span class="dot ${dc}"></span>${MOD_ST[m.status]||m.status}
       · ${(m.duration||0).toFixed(1)}s${prev}
       · <span class="lnk" onclick="fyEditOv(${m.id})">texto</span>
@@ -1381,6 +1521,7 @@ const RS_ST={pending:'en cola',downloading:'descargando',transcribing:'transcrib
 function renderFyStudio(){
   const rl=$('fy-research'),an=$('fy-angles'),sc=$('fy-scripts'),sel=$('fy-script'),gb=$('fy-gensc');
   if(!rl)return;
+  if(F.editScript!=null){const _t=$('sc-edit-'+F.editScript);if(_t){const _s=F.scripts.find(x=>x.id===F.editScript);if(_s)_s.text=_t.value;}}  // no perder lo tecleado en el poll
   const rb=$('fy-research-btn');
   if(rb){const busy=F.status.personas_researching;rb.disabled=busy;rb.textContent=busy?'🔍 Investigando...':'🔍 Investigar buyer persona';}
   const pc=$('fy-personacands');
@@ -1422,12 +1563,17 @@ function renderFyStudio(){
     const scriptCard=s=>{
       const cls=s.type==='hook'?'h':s.type==='body'?'b':'c';
       const risk=(s.risk==='alta'||s.risk==='media')?`<span class="risk ${s.risk}" title="${esc(s.risk_reason||'Revisar políticas de TikTok')}">⚠️ ${s.risk==='alta'?'riesgo':'revisar'}</span>`:'';
+      const editing=s.id===F.editScript;
+      const body=editing?`<textarea class="sc-edit" id="sc-edit-${s.id}">${esc(s.text)}</textarea>`:`<div class="sc-txt">${esc(s.text)}</div>`;
+      const acts=editing
+        ?`<div class="sc-act"><button class="done" onclick="fySaveScript(${s.id})">Guardar</button><button onclick="fyCancelScript()">Cancelar</button></div>`
+        :`<div class="sc-act"><button onclick='cpTxt(${JSON.stringify(s.text)},this)'>📋 copiar</button><button onclick="fyEditScript(${s.id})">✏️ editar</button>${s.status==='pending'?`<button class="done" onclick="fyScriptSt(${s.id},'recorded')">✓ grabado</button><button onclick="fyScriptSt(${s.id},'discarded')">descartar</button>`:`<button onclick="fyScriptSt(${s.id},'pending')">↩ pendiente</button>`}</div>`;
       return`<div class="sc-card ${cls}${s.status==='recorded'?' rec':''}">
         <div class="sc-top"><span class="sc-ang">${esc(s.angle||'—')}</span>${risk}<span class="sc-dur">~${(s.est_seconds||0).toFixed(0)}s</span></div>
-        <div class="sc-txt">${esc(s.text)}</div>
+        ${body}
         ${s.overlay_text?`<div class="sc-ov">“${esc(s.overlay_text)}”</div>`:''}
         ${(s.risk==='alta'&&s.risk_reason)?`<div class="risk-note">⚠️ ${esc(s.risk_reason)} — suavízalo antes de publicar.</div>`:''}
-        <div class="sc-act"><button onclick='cpTxt(${JSON.stringify(s.text)},this)'>📋 copiar</button><button onclick="fyEditScript(${s.id})">✏️ editar</button>${s.status==='pending'?`<button class="done" onclick="fyScriptSt(${s.id},'recorded')">✓ grabado</button><button onclick="fyScriptSt(${s.id},'discarded')">descartar</button>`:`<button onclick="fyScriptSt(${s.id},'pending')">↩ pendiente</button>`}</div>
+        ${acts}
       </div>`;};
     const grid=items=>`<div class="modgrid">${['hook','body','cta'].map(t=>{
       const its=items.filter(s=>s.type===t);
@@ -1451,11 +1597,58 @@ function renderFyStudio(){
   }
 }
 
+// ── Tablero semanal: embudo de cada persona de un vistazo ──
+function fyPersonaStats(key){
+  const k=key==='__none__'?'':key;
+  const sc=F.scripts.filter(s=>(s.persona||'')===k&&s.status!=='discarded');
+  const linked=new Set();F.mods.forEach(m=>{if((m.persona||'')===k&&m.script_id)linked.add(String(m.script_id));});
+  const rec=sc.filter(s=>s.status==='recorded'||linked.has(String(s.id))).length;
+  const mods=F.mods.filter(m=>(m.persona||'')===k);
+  const readyM=mods.filter(m=>m.status==='ready');
+  const missing=['hook','body','cta'].filter(t=>!readyM.some(m=>m.type===t));
+  const combos=F.combos.filter(c=>(c.persona||'')===k);
+  const readyC=combos.filter(c=>c.status==='ready').length;
+  const published=combos.filter(c=>c.published_at).length;
+  const queue=combos.filter(c=>c.status==='ready'&&!c.published_at).length;
+  return {totScripts:sc.length,rec,readyMods:readyM.length,totMods:mods.length,missingTypes:missing,readyCombos:readyC,published,queue};
+}
+function fyNextStepFor(st){
+  if(!st.totScripts&&!st.totMods)return 1;
+  if(st.missingTypes.length||!st.totMods)return 2;
+  if(!st.readyCombos)return 3;
+  if(st.queue)return 4;
+  return 5;
+}
+const DASH_DO={1:'🧠 generar guiones',2:'🎙 grabar y subir',3:'⚡ generar videos',4:'📤 publicar',5:'📊 importar métricas'};
+function renderFyDashboard(){
+  const el=$('fy-dash');if(!el)return;
+  const tabs=fyPersonaTabs();
+  if(!tabs.length){el.innerHTML='';return;}
+  const rows=tabs.map(t=>{
+    const st=fyPersonaStats(t.key);
+    const ns=fyNextStepFor(st);
+    const go=`fyDashGo(${JSON.stringify(t.key)}`;
+    const cell=(label,val,step,warn)=>`<span class="dash-cell${warn?' warn':''}" onclick='${go},${step})'><b>${val}</b> ${label}</span>`;
+    return`<div class="dash-row${t.key===F.activePersona?' active':''}">
+      <span class="dash-who" onclick='${go},${ns})'>${t.orphan?'📦':'👤'} ${esc(t.orphan?'Sin persona':fyShort(t.label))}</span>
+      <div class="dash-cells">
+        ${cell('grabados',`${st.rec}/${st.totScripts}`,1)}
+        ${cell('módulos',`${st.readyMods}`,2,st.missingTypes.length>0)}
+        ${cell('videos',`${st.readyCombos}`,3)}
+        ${cell('en cola',`${st.queue}`,4)}
+        ${cell('publicados',`${st.published}`,4)}
+        <span class="dash-next" onclick='${go},${ns})'>${DASH_DO[ns]}</span>
+      </div></div>`;
+  }).join('');
+  el.innerHTML=`<div class="dash"><div class="dash-hd">📋 Esta semana · embudo por persona <span style="color:var(--t4);font-weight:400">— toca una celda para ir</span></div>${rows}</div>`;
+}
+function fyDashGo(key,step){fySetPersona(key);F.manual=step;renderFyLists();const f=$('fy-st-'+step);if(f)f.scrollIntoView({behavior:'smooth',block:'center'});}
 function renderFyLists(){
   if(!F.camp){$('fy-lists').innerHTML='';return;}
   if(!$('fy-st-1'))return; // el formulario aún no está montado
   $('fy-lists').innerHTML='';
   renderFyPersonaBar();            // barra de personas = filtro maestro
+  renderFyDashboard();             // tablero: embudo por persona
   $('fy-chips').innerHTML=fyStats();
   renderFyStudio();
   const mods=sList(F.mods),combos=sList(F.combos),queue=sQueue();  // todo, scoped a la persona activa
@@ -1479,7 +1672,7 @@ function renderFyLists(){
     <td>${c.views!=null?fmtN(c.views):'—'}</td>
     <td>${c.gmv!=null?'$'+fmtN(c.gmv):'—'}</td>
     <td>${c.published_at?'✓':''}</td>
-    <td style="white-space:nowrap">${c.output_path?`<a class="lnk" href="${furl(c.output_path)}" target="_blank">ver</a> · `:''}<span class="lnk" onclick='cpTxt(${JSON.stringify(c.caption||"")},this)'>caption</span> · <span class="lnk" style="color:var(--g,#10B981)" title="Genera hooks nuevos del ángulo de este video para su persona" onclick="fyDouble(${c.id})">⭐ doblar</span>${c.published_at?'':` · <span class="lnk" onclick="fyPub(${c.id})">publicado</span>`}</td>
+    <td style="white-space:nowrap">${c.output_path?`<a class="lnk" href="${furl(c.output_path)}" target="_blank">ver</a> · `:''}<span class="lnk" title="Copia el caption con el código ${esc(c.name)} al inicio (déjalo en el caption de TikTok para cruzar métricas)" onclick='cpTxt(${JSON.stringify((c.name?c.name+"\n\n":"")+(c.caption||""))},this)'>caption</span> · <span class="lnk" style="color:var(--g,#10B981)" title="Genera hooks nuevos del ángulo de este video para su persona" onclick="fyDouble(${c.id})">⭐ doblar</span>${c.published_at?'':` · <span class="lnk" onclick="fyPub(${c.id})">publicado</span>`}</td>
   </tr>`;}).join('');
   $('fy-combos-box').innerHTML=combos.length?`<table><thead><tr><th>Video</th><th>Dur</th><th>Score</th><th>Razón</th><th>Views</th><th>GMV</th><th>Pub</th><th></th></tr></thead><tbody>${rows}</tbody></table><div style="font-size:11px;color:var(--t4);margin-top:6px">⭐ <b>doblar</b> = la IA genera hooks nuevos del ángulo de ese video para su buyer persona (úsalo con los que vendieron).</div>`:'<div style="color:var(--t4);font-size:13px">Aún no hay videos de esta persona. Cuando sus módulos estén listos, presiona ⚡ Generar combinaciones.</div>';
   if(F.durAuto){const dr=$('fy-dur-row');if(dr)dr.innerHTML=renderDurControls();}  // mantén vivo el rango automático
@@ -1488,23 +1681,27 @@ function renderFyLists(){
   // Paso 4 · cola de hoy (de la persona activa)
   $('fy-queue-box').innerHTML=queue.length?`<div class="qwrap">${queue.map(q=>{
     const[bg,fg]=scoreCol(q.score);
-    return`<div class="qcard"><div class="nm">${esc(q.name)} <span class="scorep" style="background:${bg};color:${fg}">${q.score!=null?Math.round(q.score):'—'}</span></div>
+    return`<div class="qcard"><div style="display:flex;gap:10px">${q.output_path?`<video class="q-prev" src="${furl(q.output_path)}#t=0.1" preload="metadata" playsinline title="toca para ver/oír" onclick="document.querySelectorAll('.mod-prev,.q-prev,.stg-prev').forEach(v=>{if(v!==this)v.pause()});this.paused?this.play():this.pause()"></video>`:''}<div style="min-width:0;flex:1">
+    <div class="nm">${esc(q.name)} <span class="scorep" style="background:${bg};color:${fg}">${q.score!=null?Math.round(q.score):'—'}</span></div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${(q.duration||0).toFixed(0)}s</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <a class="abtn" href="${furl(q.output_path)}" target="_blank" style="text-decoration:none">▶ Ver</a>
-      <button class="abtn" onclick='cpTxt(${JSON.stringify(q.caption||"")},this)'>📋 Caption</button>
+      <button class="abtn" title="Incluye el código ${esc(q.name)} al inicio — déjalo en el caption de TikTok para cruzar métricas" onclick='cpTxt(${JSON.stringify((q.name?q.name+"\n\n":"")+(q.caption||""))},this)'>📋 Caption</button>
       <button class="abtn" onclick="fyPub(${q.id})">✓ Publicado</button>
-    </div></div>`;}).join('')}</div>`:'<div style="color:var(--t4);font-size:13px">Nada pendiente de publicar — genera videos en el paso 3.</div>';
+    </div></div></div></div>`;}).join('')}</div>`:'<div style="color:var(--t4);font-size:13px">Nada pendiente de publicar — genera videos en el paso 3.</div>';
 
   // Paso 5 · atribución (de la persona activa)
   const attr=sList(F.attr);
-  const attrRows=t=>attr.filter(a=>a.type===t&&a.videos_with_metrics>0).map(a=>`<tr>
+  const attrRows=t=>attr.filter(a=>a.type===t&&a.total_combos>0).map(a=>`<tr>
     <td style="font-weight:600">${esc(a.label)}</td>
-    <td style="font-size:12px" title="${esc(a.snippet)}">${esc(a.overlay_text||a.snippet||'')}</td>
-    <td>${a.videos_with_metrics}</td><td>${a.avg_views!=null?fmtN(a.avg_views):'—'}</td>
+    <td style="font-size:12px" title="${esc(a.snippet)}">${esc(a.angle||a.overlay_text||a.snippet||'—')}</td>
+    <td title="videos con métricas / total">${a.videos_with_metrics}/${a.total_combos}</td>
+    <td>${a.avg_views!=null?fmtN(a.avg_views):'—'}</td>
     <td>${a.avg_gmv!=null?'$'+fmtN(a.avg_gmv):'—'}</td></tr>`).join('');
   const hasMetrics=attr.some(a=>a.videos_with_metrics>0);
-  $('fy-attr-box').innerHTML=hasMetrics?`<div class="modgrid">${['hook','body','cta'].map(t=>`<div><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">${TYPE_ES[t].toUpperCase()}S</h5><table><thead><tr><th></th><th>Texto</th><th>n</th><th>Views</th><th>GMV</th></tr></thead><tbody>${attrRows(t)||''}</tbody></table></div>`).join('')}</div>`:'';
+  $('fy-attr-box').innerHTML=hasMetrics
+    ?`<div class="modgrid">${['hook','body','cta'].map(t=>`<div><h5 style="font-size:11px;color:var(--t4);margin-bottom:6px">${TYPE_ES[t].toUpperCase()}S</h5><table><thead><tr><th></th><th>Ángulo / texto</th><th title="videos con métricas / total">n</th><th>Views</th><th>GMV</th></tr></thead><tbody>${attrRows(t)||'<tr><td colspan="5" style="color:var(--t4)">—</td></tr>'}</tbody></table></div>`).join('')}</div>`
+    :'<div class="fy-hint">Aún sin métricas de esta persona. Importa el CSV del viernes (arriba) para ver qué hook, cuerpo y CTA ganan.</div>';
 
   fySummaries(hasMetrics);
   fyApplyOpen();
@@ -1537,25 +1734,24 @@ function fySummaries(hasMetrics){
 }
 
 async function fyEditIA(id,label){
-  const t=prompt(`Editar ${label} con IA — quita silencios, tomas repetidas y errores.\n\nDuración objetivo en segundos (déjalo vacío para solo limpiar):`,'');
+  const t=await promptDialog({title:`Editar ${label} con IA`,label:'Quita silencios, tomas repetidas y errores. Duración objetivo en segundos (vacío = solo limpiar)',numeric:true,placeholder:'p. ej. 8',validate:s=>{if(!s)return null;const n=parseFloat(s);return(!n||n<3)?'Duración inválida (mín. 3s)':null;}});
   if(t===null)return;
   const target=t.trim()?parseFloat(t):null;
-  if(t.trim()&&(!target||target<3)){alert('Duración inválida');return;}
   try{await api('POST',`/api/factory/modules/${id}/edit`,{target_seconds:target});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 
 async function fyEditOv(id){
   const m=F.mods.find(x=>x.id===id);if(!m)return;
-  const txt=prompt('Texto en pantalla para '+m.label+' (re-renderiza el módulo):',m.overlay_text||'');
+  const txt=await promptDialog({title:'Texto en pantalla',label:'Texto para '+m.label+' (re-renderiza el módulo)',value:m.overlay_text||''});
   if(txt===null)return;
   try{await api('PATCH',`/api/factory/modules/${id}`,{overlay_text:txt});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyDelMod(id,label){
-  if(!confirm(`¿Borrar ${label}? Se borran también sus combinaciones.`))return;
+  if(!await confirmDialog({title:'Borrar módulo',message:`¿Borrar ${label}? Se borran también sus combinaciones.`,okText:'Borrar',danger:true}))return;
   try{await api('DELETE',`/api/factory/modules/${id}`);await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 // ── Duración: automática (según los clips) o manual ──
 function fyAutoRange(){
@@ -1591,45 +1787,56 @@ function fyTestHint(){
 }
 function fyRefreshTestHint(){const e=$('fy-test-hint');if(e)e.innerHTML=fyTestHint();}
 async function fyGen(){
-  if(!F.camp){alert('Selecciona una campaña');return;}
+  if(!F.camp){toast('Selecciona una campaña','error');return;}
   let mn=F.minD,mx=F.maxD;
   if(F.durAuto){const r=fyAutoRange();if(r){mn=Math.max(1,Math.floor(r.min)-1);mx=Math.ceil(r.max)+1;}else{mn=1;mx=100000;}}
   try{await api('POST','/api/factory/combos/generate',{campaign_id:F.camp,persona:fyEffPersona(),product_name:F.prod,min_duration:mn,max_duration:mx,mode:F.testMode||'focused'});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyRerender(){
   if(!F.camp)return;
-  if(!confirm('¿Re-renderizar todos los módulos listos con la plantilla actual?\n\nLas combinaciones existentes se borran y al terminar presionas Generar de nuevo.'))return;
+  if(!await confirmDialog({title:'Re-renderizar módulos',message:'¿Re-renderizar todos los módulos listos con la plantilla actual?\n\nLas combinaciones existentes se borran y al terminar presionas Generar de nuevo.',okText:'Re-renderizar',danger:true}))return;
   try{await api('POST','/api/factory/rerender',{campaign_id:F.camp});await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyClear(){
-  if(!confirm('¿Borrar las combinaciones de esta campaña? (los módulos se conservan)'))return;
+  if(!await confirmDialog({title:'Borrar combinaciones',message:'¿Borrar las combinaciones de esta campaña? (los módulos se conservan)',okText:'Borrar combinaciones',danger:true}))return;
   try{await api('DELETE',`/api/factory/combos?campaign_id=${F.camp}`);await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyPub(id){
   try{await api('POST',`/api/factory/combos/${id}/published`);await loadFactory();}
-  catch(e){alert(e.message);}
+  catch(e){toastErr(e);}
 }
 async function fyDouble(id){
-  if(!confirm('Doblar al ganador: la IA generará hooks nuevos del ángulo de este video para su buyer persona (se añaden como pendientes en su pestaña). ¿Continuar?'))return;
+  if(!await confirmDialog({title:'Doblar al ganador',message:'La IA generará hooks nuevos del ángulo de este video para su buyer persona (se añaden como pendientes en su pestaña). ¿Continuar?',okText:'Doblar'}))return;
+  toast('⭐ Generando variaciones del ganador…','info',{id:'st-double'});
   try{
     const r=await api('POST','/api/factory/combos/double',{combo_id:id});
     if(r&&r.persona)fySetPersona(r.persona);
     await loadFactory();
-  }catch(e){alert(e.message);}
+  }catch(e){toastErr(e);}
+}
+function fyMetricsReport(d){
+  const METRIC_ES={views:'Views',likes:'Likes',gmv:'GMV'};
+  const probs=[];
+  if(d.rows_without_code)probs.push(`${d.rows_without_code} fila(s) del CSV sin código H#-B#-C# → no se cruzaron`);
+  if(d.unmatched_codes&&d.unmatched_codes.length)probs.push(`Códigos en el CSV que no existen aquí: ${d.unmatched_codes.join(', ')}`);
+  if(d.missing_metrics&&d.missing_metrics.length)probs.push(`No se detectó columna de: ${d.missing_metrics.map(m=>METRIC_ES[m]||m).join(', ')}`);
+  if(!probs.length){toast(`✓ Cruzados ${d.matched} de ${d.total_rows} filas`,'success');return;}
+  const head=d.matched?`Cruzados ${d.matched} de ${d.total_rows} filas.`:`No se cruzó ninguna fila (de ${d.total_rows}).`;
+  alertDialog({title:'Resultado de la importación',message:head+'\n\n• '+probs.join('\n• ')+'\n\nTip: deja el código del combo (H#-B#-C#) en el caption/título al publicar — así se cruzan las métricas.'});
 }
 async function fyMetrics(){
   const inp=$('fy-csv');const file=inp?.files?.[0];
-  if(!file){alert('Elige el CSV exportado');return;}
+  if(!file){toast('Elige el CSV exportado','error');return;}
   const fd=new FormData();fd.append('file',file);
   try{
     const r=await fetch('/api/factory/metrics',{method:'POST',body:fd});
     const d=await r.json();if(!r.ok)throw new Error(d.detail||'Error');
-    alert(`Cruzados ${d.matched} videos de ${d.total_rows} filas (columnas: ${(d.columns||[]).join(', ')||'ninguna'})`);
+    fyMetricsReport(d);
     inp.value='';await loadFactory();
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){toast('Error: '+e.message,'error');}
 }
 
 /* ── Tema claro/oscuro ── */

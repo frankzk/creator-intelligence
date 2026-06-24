@@ -744,8 +744,10 @@ def import_metrics_csv(text: str) -> dict:
     por eso conviene dejar el nombre del archivo en el caption o título."""
     reader = csv.reader(text.splitlines())
     rows = [r for r in reader if any(cell.strip() for cell in r)]
+    empty = {"matched": 0, "total_rows": 0, "columns": [],
+             "unmatched_codes": [], "rows_without_code": 0, "missing_metrics": []}
     if not rows:
-        return {"matched": 0, "total_rows": 0}
+        return empty
 
     header = [h.strip().lower() for h in rows[0]]
     col_idx: dict[str, int] = {}
@@ -757,9 +759,12 @@ def import_metrics_csv(text: str) -> dict:
 
     conn = get_conn()
     matched = 0
+    rows_without_code = 0
+    unmatched: list[str] = []          # códigos en el CSV que no existen como combo
     for row in rows[1:]:
         m = next((mm for cell in row for mm in [_COMBO_RE.search(cell)] if mm), None)
         if not m:
+            rows_without_code += 1
             continue
         name = m.group(0).upper()
         updates, values = [], []
@@ -775,11 +780,21 @@ def import_metrics_csv(text: str) -> dict:
             f"UPDATE factory_combos SET {', '.join(updates)} WHERE name=?",
             (*values, name),
         )
-        matched += cur.rowcount
+        if cur.rowcount:
+            matched += cur.rowcount
+        else:
+            unmatched.append(name)
     conn.commit()
     conn.close()
     write_manifest()
-    return {"matched": matched, "total_rows": len(rows) - 1, "columns": list(col_idx)}
+    return {
+        "matched": matched,
+        "total_rows": len(rows) - 1,
+        "columns": list(col_idx),
+        "unmatched_codes": list(dict.fromkeys(unmatched)),   # dedupe, conserva orden
+        "rows_without_code": rows_without_code,
+        "missing_metrics": [m for m in _METRIC_COLS if m not in col_idx],
+    }
 
 
 def module_attribution(campaign_id: int | None = None) -> list[dict]:
@@ -791,8 +806,9 @@ def module_attribution(campaign_id: int | None = None) -> list[dict]:
     for mtype, fk in (("hook", "hook_id"), ("body", "body_id"), ("cta", "cta_id")):
         params = (mtype, campaign_id) if campaign_id is not None else (mtype,)
         rows = conn.execute(f"""
-            SELECT m.id, m.label, m.overlay_text, m.transcript, m.persona,
+            SELECT m.id, m.label, m.overlay_text, m.transcript, m.persona, m.angle,
                    COUNT(co.id) AS n,
+                   (SELECT COUNT(*) FROM factory_combos cc WHERE cc.{fk}=m.id) AS total_combos,
                    AVG(co.views) AS avg_views,
                    AVG(co.gmv) AS avg_gmv,
                    AVG(co.score) AS avg_score
@@ -807,8 +823,10 @@ def module_attribution(campaign_id: int | None = None) -> list[dict]:
                 "type": mtype, "label": r["label"],
                 "overlay_text": r["overlay_text"],
                 "persona": r["persona"] or "",
+                "angle": r["angle"] or "",
                 "snippet": (r["transcript"] or "")[:90],
                 "videos_with_metrics": r["n"],
+                "total_combos": r["total_combos"],
                 "avg_views": round(r["avg_views"], 0) if r["avg_views"] is not None else None,
                 "avg_gmv": round(r["avg_gmv"], 2) if r["avg_gmv"] is not None else None,
                 "avg_score": round(r["avg_score"], 1) if r["avg_score"] is not None else None,
