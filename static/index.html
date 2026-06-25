@@ -1372,7 +1372,8 @@ function setStageProgress(it){
 // así el tamaño del clip deja de importar. Con watchdog de estancamiento, handlers
 // completos (también xhr.upload.onerror/onabort), reintento por trozo y cancelación real.
 const CHUNK_BYTES=8*1024*1024;     // 8 MB por trozo
-const CHUNK_STALL_MS=25000;        // sin avance 25s → trozo estancado (no 10 min)
+const CHUNK_STALL_MS=45000;        // sin avance 45s → trozo estancado (tolera conexiones lentas)
+const fySleep=ms=>new Promise(r=>setTimeout(r,ms));
 function fyUploadId(){
   try{ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
   let s='';for(let i=0;i<32;i++)s+='0123456789abcdef'[(Math.random()*16)|0];
@@ -1384,7 +1385,7 @@ function sendChunkXHR(it,uploadId,offset,blob,onFrac){
     let wd; const arm=()=>{clearTimeout(wd);wd=setTimeout(()=>{try{xhr.abort();}catch(_){}},CHUNK_STALL_MS);};
     const fin=()=>{clearTimeout(wd); if(it._xhr===xhr)it._xhr=null;};
     xhr.open('POST','/api/factory/modules/chunk');
-    xhr.timeout=90000;
+    xhr.timeout=0;            // sin tope fijo: manda el watchdog de inactividad (un trozo lento-pero-vivo no se mata)
     xhr.upload.onprogress=e=>{arm(); if(e.lengthComputable&&onFrac)onFrac(e.loaded/(e.total||1));};
     xhr.upload.onerror=()=>{fin();reject(new Error('Fallo de red en un trozo'));};
     xhr.upload.onabort=()=>{fin();reject(new Error(it._cancelled?'Cancelado':'La subida se quedó sin avanzar — reintenta'));};
@@ -1410,27 +1411,51 @@ function finalizeXHR(it,uploadId){
     xhr.send(fd);
   });
 }
+// Cuántos bytes del archivo ya tiene el servidor → para reanudar sin re-subir todo.
+async function fyChunkStatus(uploadId){
+  try{
+    const r=await fetch('/api/factory/modules/chunk-status?upload_id='+encodeURIComponent(uploadId));
+    if(!r.ok)return 0;
+    const d=await r.json(); const n=+d.size; return (isFinite(n)&&n>0)?n:0;
+  }catch(_){ return 0; }
+}
 async function uploadModuleChunked(it,onProgress){
-  const uploadId=fyUploadId(), size=it.file.size, total=Math.max(1,Math.ceil(size/CHUNK_BYTES));
-  for(let index=0;index<total;index++){
+  const uploadId=it._uploadId||(it._uploadId=fyUploadId());   // estable por archivo → reintentar reanuda
+  const size=it.file.size, total=Math.max(1,Math.ceil(size/CHUNK_BYTES));
+  // Reanudar: arranca desde el último trozo completo que el servidor ya tiene.
+  let from=0; const have=await fyChunkStatus(uploadId);
+  if(have>0) from=Math.min(total,Math.floor(have/CHUNK_BYTES));
+  if(from>0) onProgress(Math.round((from/total)*100));
+  for(let index=from;index<total;index++){
     if(it._cancelled)throw new Error('Cancelado');
     const start=index*CHUNK_BYTES, blob=it.file.slice(start,Math.min(size,start+CHUNK_BYTES));
     let attempt=0;
     for(;;){
       try{ await sendChunkXHR(it,uploadId,start,blob,frac=>onProgress(Math.round(((index+frac)/total)*100))); onProgress(Math.round(((index+1)/total)*100)); break; }
-      catch(e){ if(it._cancelled||++attempt>2)throw e; }   // 3 intentos por trozo ante cortes
+      catch(e){ if(it._cancelled||++attempt>4)throw e;            // 5 intentos por trozo ante cortes
+                await fySleep(Math.min(1500*Math.pow(2,attempt-1),8000)); }  // espera 1.5s,3s,6s,8s
     }
   }
   if(it._cancelled)throw new Error('Cancelado');
   return await finalizeXHR(it,uploadId);
 }
 async function fyUploadItem(it){
-  it.status='uploading';it.error='';it.progress=0;it._cancelled=false;renderStage();
-  try{
-    await uploadModuleChunked(it,p=>{ it.progress=p; if(p>=100){ if(it.status!=='processing'){it.status='processing';renderStage();} } else setStageProgress(it); });
-    it.status='done';
-  }catch(e){ it.status=it._cancelled?'cancelled':'error'; it.error=e.message||'falló'; }
-  finally{ it._xhr=null; }
+  it.status='uploading';it.error='';it.progress=0;it._cancelled=false;it._retry=0;renderStage();
+  const onP=p=>{ it.progress=p; if(p>=100){ if(it.status!=='processing'){it.status='processing';renderStage();} } else setStageProgress(it); };
+  let tries=0;
+  for(;;){
+    try{
+      await uploadModuleChunked(it,onP);
+      it.status='done'; break;
+    }catch(e){
+      if(it._cancelled){ it.status='cancelled'; it.error=e.message||'Cancelado'; break; }
+      if(++tries>=3){ it.status='error'; it.error=e.message||'falló'; break; }   // 3 intentos de archivo completo (cada uno reanuda)
+      it._retry=tries; renderStage();          // "↻ reintentando…" durante la espera
+      await fySleep(2000*tries);                // 2s, 4s antes de reanudar (reanuda, no re-sube lo ya subido)
+      it._retry=0; renderStage();               // limpia el aviso al reanudar
+    }
+  }
+  it._retry=0; it._xhr=null;
   renderStage();
 }
 function fyCancelItem(uid){
@@ -1488,7 +1513,7 @@ function renderStage(){
     const opts=pend.filter(s=>s.type===it.type).map(s=>`<option value="${s.id}"${String(s.id)===String(it.script)?' selected':''}>${esc((s.angle||'guion')+': '+s.text.slice(0,30))}…</option>`).join('');
     const busy=it.status==='uploading'||it.status==='processing'||it.status==='done';
     let st='';
-    if(it.status==='uploading')st=`<div class="stg-prog"><div class="stg-prog-bar" id="stg-pg-${it.uid}" style="width:${it.progress||0}%"></div></div><span class="stg-pct" id="stg-pct-${it.uid}">${it.progress||0}%</span>`;
+    if(it.status==='uploading')st=`<div class="stg-prog"><div class="stg-prog-bar" id="stg-pg-${it.uid}" style="width:${it.progress||0}%"></div></div><span class="stg-pct" id="stg-pct-${it.uid}">${it.progress||0}%</span>${it._retry?`<span style="font-size:11px;color:var(--p);margin-left:6px">↻ reintentando… (${it._retry})</span>`:''}`;
     else if(it.status==='processing')st=`<span style="font-size:11.5px;color:var(--p);font-weight:600">⏳ procesando en el servidor…</span>`;
     else if(it.status==='done')st=`<span style="color:var(--g);font-size:12px;font-weight:600">✓ subido</span>`;
     else if(it.status==='error')st=`<span style="color:var(--r);font-size:11.5px" title="${esc(it.error||'')}">✕ ${esc((it.error||'falló').slice(0,46))}</span><button class="stg-retry" onclick="fyRetryItem(${it.uid})">↻ reintentar</button>`;

@@ -926,6 +926,15 @@ async def factory_upload_chunk(
     return {"ok": True, "offset": offset, "len": len(data)}
 
 
+@app.get("/api/factory/modules/chunk-status")
+async def factory_chunk_status(upload_id: str):
+    # Cuánto del archivo ya llegó → el front reanuda desde ahí (no re-sube todo).
+    uid = _safe_upload_id(upload_id)
+    part = vf.TMP_DIR / f"{uid}.part"
+    size = part.stat().st_size if part.exists() else 0
+    return {"size": size}
+
+
 @app.post("/api/factory/modules/finalize")
 async def factory_finalize_upload(
     upload_id: str = Form(...),
